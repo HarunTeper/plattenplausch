@@ -57,6 +57,11 @@ The client sends **player IDs only, never prices** — the server looks up price
 
 ## Google Sheet — the system of record (organizer creates this manually)
 
+> **Shortcut:** this repo ships **`plattenplausch-sheet.xlsx`** — a ready-to-import workbook with
+> all four tabs, your seeded players, the matchday grid, and the Ranking formulas already wired.
+> See **[`docs/SHEET-SETUP.md`](docs/SHEET-SETUP.md)** for click-by-click import + usage. The
+> manual spec below documents what that file contains. Regenerate it with `npm run make:sheet`.
+
 Create one Google Sheet with **four tabs**. The Apps Script is **bound** to this Sheet.
 
 ### `Submissions`
