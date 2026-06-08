@@ -1,0 +1,23 @@
+{
+  "name": "plattenplausch",
+  "version": "1.0.0",
+  "description": "Plattenplausch — a Table Tennis Fantasy League PWA for the German TTBL podcast community.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "export:players": "node scripts/export-players.mjs"
+  },
+  "devDependencies": {
+    "vite": "^5.4.10",
+    "vite-plugin-pwa": "^0.20.5"
+  },
+  "dependencies": {
+    "alpinejs": "^3.14.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#ff5a1f" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>Plattenplausch — Tabelle</title>
+    <meta name="description" content="Die aktuelle Plattenplausch Fantasy-Tabelle." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;700;800&family=Sora:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body x-data="ranking" x-cloak>
+    <header class="topbar">
+      <a class="brand" href="/index.html">
+        <span class="dot"></span>
+        <span>
+          <b>Plattenplausch</b><br />
+          <span>TT Fantasy League</span>
+        </span>
+      </a>
+      <nav class="nav">
+        <a href="/index.html">Team aufstellen</a>
+        <a href="/ranking.html" class="active">Tabelle</a>
+      </nav>
+    </header>
+
+    <main class="wrap">
+      <section class="hero" style="grid-template-columns: 1fr">
+        <div>
+          <h1>Die <em>Tabelle</em></h1>
+          <p>
+            Kumulierte Saisonpunkte aller bestätigten Teams. Nach jedem Spieltag aktualisiert der
+            Organisator die Spielerpunkte — die Tabelle aktualisiert sich danach innerhalb weniger
+            Minuten.
+          </p>
+        </div>
+      </section>
+
+      <section class="panel" style="margin-top: 18px">
+        <header>
+          <h2>Standings</h2>
+          <span class="updated">
+            <template x-if="updated && !error">
+              <span x-text="'Stand: ' + updatedLabel + ' Uhr'"></span>
+            </template>
+            <button class="btn ghost" style="margin-left: 10px; padding: 6px 12px" @click="load()">
+              Aktualisieren
+            </button>
+          </span>
+        </header>
+        <div class="body">
+          <template x-if="loading">
+            <div>
+              <div class="skeleton"></div>
+              <div class="skeleton"></div>
+              <div class="skeleton"></div>
+            </div>
+          </template>
+
+          <template x-if="error && !loading">
+            <div class="alert warn" x-text="error"></div>
+          </template>
+
+          <template x-if="!loading && !error && rows.length === 0">
+            <p class="note">Noch keine bestätigten Teams in der Tabelle. Sei der/die Erste!</p>
+          </template>
+
+          <template x-if="!loading && rows.length > 0">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th @click="sortBy('rank')" :aria-sort="ariaSort('rank')">Rang</th>
+                  <th @click="sortBy('teamName')" :aria-sort="ariaSort('teamName')">Team</th>
+                  <th @click="sortBy('total')" :aria-sort="ariaSort('total')" style="text-align: right">
+                    Punkte
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="(row, i) in sortedRows" :key="row.teamName + i">
+                  <tr>
+                    <td class="rank" :class="row.rank <= 3 && ('r' + row.rank)" x-text="row.rank"></td>
+                    <td x-text="row.teamName"></td>
+                    <td class="total" x-text="row.total"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </template>
+
+          <p class="note" style="margin-top: 18px">
+            Es werden nur <b>bestätigte, aktive</b> Teams gezeigt (das jeweils zuletzt bestätigte
+            Team pro E-Mail-Adresse). E-Mail-Adressen werden niemals angezeigt. Gleichstand wird
+            nach früherer Einreichung, dann alphabetisch aufgelöst.
+          </p>
+        </div>
+      </section>
+
+      <footer class="foot">
+        Plattenplausch · Fan-Projekt der Podcast-Community ·
+        <a href="/index.html">← Team aufstellen</a>
+      </footer>
+    </main>
+
+    <script type="module" src="/main.js"></script>
+  </body>
+</html>

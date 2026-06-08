@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#ff5a1f" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>Plattenplausch — Stelle dein TTBL-Fantasy-Team auf</title>
+    <meta
+      name="description"
+      content="Plattenplausch: Stelle aus 100 Punkten dein TTBL-Fantasy-Team zusammen und klettere die Tabelle hoch."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;700;800&family=Sora:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Cloudflare Turnstile -->
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
+  </head>
+  <body x-data="draft" x-cloak>
+    <header class="topbar">
+      <a class="brand" href="/index.html">
+        <span class="dot"></span>
+        <span>
+          <b>Plattenplausch</b><br />
+          <span>TT Fantasy League</span>
+        </span>
+      </a>
+      <nav class="nav">
+        <a href="/index.html" class="active">Team aufstellen</a>
+        <a href="/ranking.html">Tabelle</a>
+      </nav>
+    </header>
+
+    <main class="wrap">
+      <!-- Hero + budget meter -->
+      <section class="hero">
+        <div>
+          <h1>Dein Kader. <em>100 Punkte.</em> Eine Saison.</h1>
+          <p>
+            Stelle aus den TTBL-Stars dein Fantasy-Team zusammen — wähle genau
+            <b x-text="ROSTER_SIZE"></b> Spieler:innen und bleibe im Budget. Einmal
+            bestätigt, ist dein Team für die Saison fixiert. Set and forget.
+          </p>
+        </div>
+
+        <!-- Tactile budget meter — the hero element -->
+        <div class="meter" aria-live="polite">
+          <div class="row">
+            <span class="label">Budget verbleibend</span>
+            <span class="label" x-text="picked.length + ' / ' + ROSTER_SIZE + ' Spieler'"></span>
+          </div>
+          <div class="row" style="align-items: flex-end">
+            <span class="big" :class="overBudget ? 'bad' : 'ok'" x-text="remaining"></span>
+            <span class="sub" x-text="'/ ' + BUDGET + ' Pkt'"></span>
+          </div>
+          <div class="track">
+            <div class="fill" :class="overBudget && 'over'" :style="`width:${fillPct}%`"></div>
+          </div>
+          <div class="pips">
+            <template x-for="i in ROSTER_SIZE" :key="i">
+              <span class="pip" :class="i <= picked.length && 'lit'"></span>
+            </template>
+          </div>
+          <div class="row">
+            <span class="label" x-text="'Ausgegeben: ' + spent + ' Pkt'"></span>
+            <span class="label" x-show="overBudget" style="color: var(--bad)">Über Budget!</span>
+          </div>
+        </div>
+      </section>
+
+      <div class="grid">
+        <!-- Player pool -->
+        <section class="panel">
+          <header><h2>Spielerpool</h2></header>
+          <div class="filters">
+            <input type="text" placeholder="Name oder Verein suchen…" x-model="query" />
+            <select x-model="posFilter">
+              <option value="">Alle Positionen</option>
+              <template x-for="pos in positions" :key="pos">
+                <option :value="pos" x-text="pos"></option>
+              </template>
+            </select>
+          </div>
+          <div class="body">
+            <template x-for="p in visiblePlayers" :key="p.id">
+              <div class="player" :class="isPicked(p.id) && 'picked'">
+                <span class="pos" x-text="p.position"></span>
+                <span class="meta">
+                  <b x-text="p.name"></b>
+                  <small x-text="p.club"></small>
+                </span>
+                <span class="price" x-text="p.price"></span>
+                <template x-if="!isPicked(p.id)">
+                  <button
+                    class="btn"
+                    :disabled="!canAdd(p)"
+                    :title="addReason(p)"
+                    @click="add(p)"
+                  >
+                    +
+                  </button>
+                </template>
+                <template x-if="isPicked(p.id)">
+                  <button class="btn remove" @click="remove(p.id)">−</button>
+                </template>
+              </div>
+            </template>
+            <p x-show="visiblePlayers.length === 0" class="note">Keine Spieler:innen gefunden.</p>
+          </div>
+        </section>
+
+        <!-- My team + submission -->
+        <section class="panel">
+          <header><h2>Mein Team</h2></header>
+          <div class="body">
+            <template x-for="i in ROSTER_SIZE" :key="i">
+              <div class="slot" :class="picked[i - 1] && 'filled'">
+                <span class="idx" x-text="i"></span>
+                <template x-if="picked[i - 1]">
+                  <span class="meta">
+                    <b x-text="picked[i - 1].name"></b>
+                    <small x-text="picked[i - 1].club + ' · ' + picked[i - 1].position"></small>
+                  </span>
+                </template>
+                <template x-if="!picked[i - 1]">
+                  <span class="meta" style="color: var(--ink-dim)"><small>Leerer Platz</small></span>
+                </template>
+                <span class="price" x-text="picked[i - 1] ? picked[i - 1].price : '—'"></span>
+                <template x-if="picked[i - 1]">
+                  <button class="btn remove" @click="remove(picked[i - 1].id)">−</button>
+                </template>
+                <template x-if="!picked[i - 1]"><span></span></template>
+              </div>
+            </template>
+
+            <!-- Submission form -->
+            <form @submit.prevent="submit" autocomplete="on" style="margin-top: 18px">
+              <div class="field">
+                <label for="teamName">Teamname (öffentlich sichtbar)</label>
+                <input id="teamName" type="text" maxlength="40" x-model="teamName" required placeholder="z. B. Topspin-Titanen" />
+              </div>
+              <div class="field">
+                <label for="email">E-Mail (nur für die Bestätigung, nie öffentlich)</label>
+                <input id="email" type="email" x-model="email" required placeholder="du@example.com" />
+              </div>
+
+              <!-- Honeypot: hidden from humans, bots fill it -->
+              <div class="hp" aria-hidden="true">
+                <label for="website">Bitte leer lassen</label>
+                <input id="website" type="text" tabindex="-1" autocomplete="off" x-model="website" />
+              </div>
+
+              <label class="consent field" style="display: flex">
+                <input type="checkbox" x-model="consent" required />
+                <span>
+                  Ich willige ein, dass meine E-Mail-Adresse zur Bestätigung und Verwaltung meines
+                  Fantasy-Teams gespeichert wird. Sie wird niemals öffentlich gezeigt und nach
+                  Saisonende gelöscht. Mehr in der
+                  <a href="#privacy">Datenschutz-Notiz</a>.
+                </span>
+              </label>
+
+              <!-- Cloudflare Turnstile widget -->
+              <div class="field" x-ref="turnstile" style="margin-top: 16px"></div>
+
+              <button class="btn block" type="submit" :disabled="!formValid || submitting">
+                <span x-show="!submitting">Team einreichen</span>
+                <span x-show="submitting">Wird gesendet…</span>
+              </button>
+
+              <template x-if="status">
+                <div class="alert" :class="status.type" x-text="status.msg"></div>
+              </template>
+            </form>
+
+            <div id="privacy" class="note">
+              <b>Datenschutz:</b> Wir speichern deine E-Mail-Adresse, deinen Teamnamen und deine
+              Spielerauswahl in einer zugriffsbeschränkten Google-Tabelle, ausschließlich für die
+              Durchführung der Fantasy-Liga. Keine Weitergabe an Dritte. Löschung nach Saisonende.
+              Die Bestätigungs-Mail ist dein einziger Beleg — es gibt keine Selbstverwaltung.
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <footer class="foot">
+        Plattenplausch · Fan-Projekt der Podcast-Community · keine offizielle TTBL-Seite ·
+        <a href="/ranking.html">Zur Tabelle →</a>
+      </footer>
+    </main>
+
+    <script type="module" src="/main.js"></script>
+  </body>
+</html>
