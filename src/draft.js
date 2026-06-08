@@ -20,6 +20,7 @@ export function draft() {
     selected: [],
     query: '',
     posFilter: '',
+    clubFilter: '', // '' = Alle; otherwise a club name ("Reiter" tab)
 
     teamName: '',
     email: '',
@@ -54,12 +55,15 @@ export function draft() {
     get overBudget() {
       return this.spent > BUDGET
     },
-    get fillPct() {
-      return Math.min(100, Math.round((this.spent / BUDGET) * 100))
+    // Meter shows REMAINING budget: starts full (100%) and drains as picks are
+    // made. Clamped to [0,100]; over-budget is surfaced via the `over` class.
+    get remainingPct() {
+      return Math.max(0, Math.min(100, Math.round((this.remaining / BUDGET) * 100)))
     },
     get visiblePlayers() {
       const q = this.query.trim().toLowerCase()
       return this.players.filter((p) => {
+        if (this.clubFilter && p.club !== this.clubFilter) return false
         if (this.posFilter && p.position !== this.posFilter) return false
         if (!q) return true
         return (
@@ -69,6 +73,16 @@ export function draft() {
     },
     get positions() {
       return [...new Set(this.players.map((p) => p.position))].sort()
+    },
+    // Distinct clubs, for the "Reiter" (per-Mannschaft) tab row.
+    get clubs() {
+      return [...new Set(this.players.map((p) => p.club))].sort((a, b) =>
+        a.localeCompare(b, 'de')
+      )
+    },
+    // How many of MY picks belong to a club — shown as a badge on the tab.
+    pickedInClub(club) {
+      return this.picked.filter((p) => p.club === club).length
     },
 
     isPicked(id) {

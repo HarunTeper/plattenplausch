@@ -38,7 +38,7 @@ Static PWA (Alpine + Vite, GitLab Pages)
   │     └─▶ Apps Script doPost(): Turnstile → deadline → validate → PENDING row → confirm email
   │            click link ─▶ doGet(): click-through page ─▶ button confirms (confirmed=TRUE)
   ├─ players.json (static, in repo — exported from the Players sheet)
-  └─ GET ranking via gviz/tq JSON ◀── Google Sheet "Ranking" tab (organizer's formulas)
+  └─ GET ranking via gviz/tq JSON ◀── Google Sheet "Ranking_Gesamt" tab (organizer's formulas)
 ```
 
 The client sends **player IDs only, never prices** — the server looks up prices from the
@@ -50,73 +50,43 @@ The client sends **player IDs only, never prices** — the server looks up price
 
 - The organizer enters **one points value per player per matchday** in the `Scores` tab.
 - A team's weekly score = sum of its players' points; the season score is cumulative.
-- The `Ranking` tab joins each **active** team's picks to each player's season total, sums, and
-  sorts. Only **confirmed, non-superseded** teams appear.
+- The season splits into **Hinrunde (MD1–MD11)** and **Rückrunde (MD12–MD22)**. Teams are
+  drafted **once** and locked all season — the two rounds are two scoring *views* of the same
+  team, not two drafts.
+- Three standings tabs join each **active** team's picks to the relevant per-player total, sum,
+  and sort: **`Ranking_Gesamt`** (whole season — the website default), **`Ranking_Hin`**,
+  **`Ranking_Rueck`**. Only **confirmed, non-superseded** teams appear.
 
 ---
 
 ## Google Sheet — the system of record (organizer creates this manually)
 
-> **Shortcut:** this repo ships **`plattenplausch-sheet.xlsx`** — a ready-to-import workbook with
-> all four tabs, your seeded players, the matchday grid, and the Ranking formulas already wired.
-> See **[`docs/SHEET-SETUP.md`](docs/SHEET-SETUP.md)** for click-by-click import + usage. The
-> manual spec below documents what that file contains. Regenerate it with `npm run make:sheet`.
+This repo ships **`plattenplausch-sheet.xlsx`** — a ready-to-import workbook with all six tabs,
+your seeded players (**grouped by club**), the Hin/Rück matchday grid, and **all the Ranking
+formulas already wired**. Regenerate with `npm run make:sheet`.
 
-Create one Google Sheet with **four tabs**. The Apps Script is **bound** to this Sheet.
+➡️ **Follow [`docs/SHEET-SETUP.md`](docs/SHEET-SETUP.md)** for click-by-click import, per-tab
+usage, the sanity test, and where the real roster comes from (mytischtennis Meldungen — still
+empty as of season 26/27 prep, so wait for the finals).
 
-### `Submissions`
-Header row (the script auto-creates it on first write, but you can pre-create it):
+The tabs at a glance:
 
-```
-submittedAt | email | teamName | p1 | p2 | p3 | p4 | p5 | p6 | token | confirmed | confirmedAt | superseded
-```
+| Tab | What it is |
+| --- | --- |
+| `Submissions` | Written by the backend. Header-only on import (appends land on row 2): `submittedAt, email, teamName, p1..p6, token, confirmed, confirmedAt, superseded`. `email` normalized; each pick its own column; `confirmed`/`superseded` booleans. |
+| `Players` | Single source of truth for validation + prices: `id, name, club, position, price`. Positions: `Abwehr`/`Allrounder`/`Offensiv` (match `POSITION_RULES` in `src/config.js` and `apps-script/Code.gs`). Export to `src/players.json` when it changes. |
+| `Scores` | `id, name, club, MD1..MD22, hinTotal, rueckTotal, playerTotal` (formulas). Organizer types matchday points; totals auto-compute. |
+| `Ranking_Gesamt` / `_Hin` / `_Rueck` | Auto-computed `rank, teamName, total` over active confirmed teams; tie-break earliest `submittedAt`, then teamName. **Never emit email.** |
 
-- `email` is stored **normalized** (`trim().toLowerCase()`).
-- Each pick is its **own column** (`p1..p6`), not a CSV string — keeps the Ranking join clean.
-- `confirmed` / `superseded` are booleans; `Ranking` only counts `confirmed=TRUE AND superseded=FALSE`.
-
-### `Players` (single source of truth for validation & prices)
-```
-id | name | club | position | price
-p001 | Dang Qiu | Borussia Düsseldorf | Offensiv | 28
-...
-```
-Positions used by the position limits: `Abwehr`, `Allrounder`, `Offensiv` (see
-`POSITION_RULES` in both `src/config.js` and `apps-script/Code.gs`).
-
-Export this tab to `src/players.json` and commit it whenever the roster changes:
+Export the Players tab to `src/players.json` when the roster changes:
 ```bash
 PLAYERS_URL='https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?sheet=Players&tqx=out:json' \
   npm run export:players
 ```
-(Or edit `src/players.json` by hand — the seed file ships with sample TTBL players.)
 
-### `Scores`
-One row per player, one column per matchday:
-```
-id | name | MD1 | MD2 | MD3 | ... | playerTotal
-p001 | Dang Qiu | 18 | 12 | 0 | ... | =SUM(C2:?2)
-```
-`playerTotal` = sum of the `MD*` columns.
-
-### `Ranking` (formulas — organizer authors these)
-Output exactly three columns: `rank`, `teamName`, `total`. **Never emit email.**
-
-For each **active** entry (`confirmed=TRUE AND superseded=FALSE`), join `p1..p6` to
-`Scores.playerTotal`, sum, then sort descending. Tie-break by **earliest `submittedAt`**, then
-alphabetical `teamName`.
-
-A `SUMPRODUCT`/`XLOOKUP` sketch for one team's total (row-wise over the active set):
-```
-=SUMPRODUCT( IFERROR( XLOOKUP(Submissions!D2:I2, Scores!A:A, Scores!playerTotalCol), 0 ) )
-```
-Filter to active rows with a helper column `=AND(K2=TRUE, M2=FALSE)` (confirmed & not
-superseded), compute each active team's total, then use `SORT`/`RANK` to produce
-`rank | teamName | total`. Keep the layout so the gviz endpoint returns those labels.
-
-**Share/access:** keep the Sheet **restricted** (not public). The PWA reads `Ranking` via the
-public gviz endpoint, which exposes only what that tab outputs (rank/teamName/total) — so never
-put email in `Ranking`.
+**Share/access:** keep the Sheet **restricted** (not public). The PWA reads only a `Ranking_*`
+tab via the public gviz endpoint, exposing just `rank/teamName/total` — never put email in any
+Ranking tab.
 
 ---
 
@@ -125,7 +95,8 @@ put email in `Ranking`.
 The frontend needs the `/exec` URL; the Apps Script needs the Sheet; the deploy needs the
 Turnstile secret. Do it in this order:
 
-1. **Create the Sheet** with tabs `Submissions, Players, Scores, Ranking`.
+1. **Create the Sheet** — import `plattenplausch-sheet.xlsx` (tabs `Submissions, Players, Scores,
+   Ranking_Gesamt, Ranking_Hin, Ranking_Rueck`). See `docs/SHEET-SETUP.md`.
 2. **Fill `Players`**, then export → `src/players.json` and commit
    (`npm run export:players`, or edit by hand).
 3. **Register a Cloudflare Turnstile site** → note the **site key** (public) + **secret**.
@@ -153,7 +124,7 @@ Turnstile secret. Do it in this order:
    `pruneUnconfirmed_` → time-driven → hour timer) so abandoned pending rows are cleaned up.
 7. **Set GitLab CI/CD variables** (Settings → CI/CD → Variables), all non-secret:
    - `VITE_WEBAPP_URL` — the `/exec` URL from step 5.
-   - `VITE_RANKING_CSV_URL` — `https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?sheet=Ranking`.
+   - `VITE_RANKING_CSV_URL` — `https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?sheet=Ranking_Gesamt`.
    - `VITE_TURNSTILE_SITE_KEY` — the Turnstile **site** key.
    - (optional) `VITE_BASE` if not using a custom domain (e.g. `/plattenplausch/`).
 8. **Push to `main`** → the `pages` job publishes. Configure a **custom HTTPS domain**
@@ -190,8 +161,9 @@ Thereafter:
       (payload prices are ignored; server looks them up).
 
 **Ranking:**
-- [ ] Sample `Scores` → `Ranking` sums correctly; `ranking.html` shows `rank/teamName/total`
-      (no emails), only active confirmed teams, tie-break by earliest `submittedAt`.
+- [ ] Sample `Scores` → `Ranking_Gesamt` sums correctly; `Ranking_Hin`/`Ranking_Rueck` show the
+      round partials; `ranking.html` shows `rank/teamName/total` (no emails), only active
+      confirmed teams, tie-break by earliest `submittedAt`.
 
 **CI:**
 - [ ] Push to `main` → Pages publishes over HTTPS; full flow (draft → submit → email → confirm

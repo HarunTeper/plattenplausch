@@ -11,9 +11,19 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { deflateRawSync } from 'node:zlib'
 
-const players = JSON.parse(readFileSync(new URL('../src/players.json', import.meta.url)))
+const playersRaw = JSON.parse(readFileSync(new URL('../src/players.json', import.meta.url)))
 const ROSTER_SIZE = 6
-const MATCHDAYS = 22 // TTBL-ish; trim/extend as you like
+
+// Season is split into two rounds. Hinrunde = MD1..HIN_MATCHDAYS, Rückrunde =
+// the rest up to MATCHDAYS. The website reads Ranking_Gesamt by default.
+const HIN_MATCHDAYS = 11 // matchdays in the Hinrunde
+const MATCHDAYS = 22 // total matchdays (Hin + Rück)
+
+// Group players by club for easy data entry (Players + Scores rows sorted by
+// club, then name). The roster IDs are unchanged — only row order differs.
+const players = [...playersRaw].sort(
+  (a, b) => a.club.localeCompare(b.club, 'de') || a.name.localeCompare(b.name, 'de')
+)
 
 // ----- minimal XLSX writer (inline strings + formulas, no shared strings) -----
 const COLS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
@@ -65,19 +75,33 @@ const playersRows = [
 ]
 
 // ----------------------------- Scores -------------------------------------
-// id | name | MD1..MDn | playerTotal(=SUM of MD range)
-const scoresHeader = [S('id'), S('name')]
+// id | name | club | MD1..MDn | hinTotal | rueckTotal | playerTotal
+// hinTotal   = SUM(MD1..MD<HIN_MATCHDAYS>)
+// rueckTotal = SUM(MD<HIN+1>..MD<MATCHDAYS>)
+// playerTotal= hinTotal + rueckTotal
+const scoresHeader = [S('id'), S('name'), S('club')]
 for (let m = 1; m <= MATCHDAYS; m++) scoresHeader.push(S('MD' + m))
-scoresHeader.push(S('playerTotal'))
-const firstMdCol = colName(3) // C
-const lastMdCol = colName(2 + MATCHDAYS)
-const totalColIdx = 3 + MATCHDAYS // 1-based col of playerTotal
+scoresHeader.push(S('hinTotal'), S('rueckTotal'), S('playerTotal'))
+
+const firstMdCol = colName(4) // D (after id,name,club)
+const hinLastCol = colName(3 + HIN_MATCHDAYS) // last Hinrunde MD column
+const rueckFirstCol = colName(3 + HIN_MATCHDAYS + 1) // first Rückrunde MD column
+const lastMdCol = colName(3 + MATCHDAYS) // last MD column
+const hinTotalIdx = 4 + MATCHDAYS // 1-based col of hinTotal
+const rueckTotalIdx = 5 + MATCHDAYS // rueckTotal
+const totalColIdx = 6 + MATCHDAYS // playerTotal (referenced by Ranking_Gesamt)
+const hinTotalCol = colName(hinTotalIdx)
+const rueckTotalCol = colName(rueckTotalIdx)
+const playerTotalCol = colName(totalColIdx)
+
 const scoresRows = [scoresHeader]
 players.forEach((p, i) => {
   const r = i + 2 // sheet row (1=header)
-  const row = [S(p.id), S(p.name)]
+  const row = [S(p.id), S(p.name), S(p.club)]
   for (let m = 1; m <= MATCHDAYS; m++) row.push(N(0)) // seed all matchdays = 0
-  row.push(F(`SUM(${firstMdCol}${r}:${lastMdCol}${r})`))
+  row.push(F(`SUM(${firstMdCol}${r}:${hinLastCol}${r})`)) // hinTotal
+  row.push(F(`SUM(${rueckFirstCol}${r}:${lastMdCol}${r})`)) // rueckTotal
+  row.push(F(`${hinTotalCol}${r}+${rueckTotalCol}${r}`)) // playerTotal
   scoresRows.push(row)
 })
 
@@ -101,74 +125,67 @@ const colPN = colName(3 + ROSTER_SIZE) // I (for roster 6)
 const colConfirmed = colName(3 + ROSTER_SIZE + 2) // K — confirmed
 const colSuperseded = colName(3 + ROSTER_SIZE + 4) // M — superseded
 const scoreId = `Scores!$A$2:$A$${players.length + 1}`
-const scoreTotal = `Scores!$${colName(totalColIdx)}$2:$${colName(totalColIdx)}$${players.length + 1}`
+const scoreRange = (col) => `Scores!$${col}$2:$${col}$${players.length + 1}`
 
-// ----------------------------- Ranking ------------------------------------
-// Self-contained. Helper columns E:G (hidden conceptually) compute, per
-// Submissions data row: active flag, teamTotal, submittedAt — as whole-column
-// array formulas anchored in E2/F2/G2. Then A/B/C produce the sorted standings.
+// ----------------------------- Ranking tabs --------------------------------
+// Three standings tabs share one shape; only the Scores total column differs:
+//   Ranking_Hin    → hinTotal      Ranking_Rueck → rueckTotal
+//   Ranking_Gesamt → playerTotal   (the website reads Ranking_Gesamt)
 //
-// active   = confirmed=TRUE AND superseded<>TRUE AND teamName not blank
-// teamTotal= SUMPRODUCT over the 6 picks XLOOKUP'd into Scores.playerTotal
+// Each tab is self-contained. Helper columns E:H (hide in the UI) compute, per
+// Submissions data row: active flag, teamTotal-for-this-round, submittedAt,
+// teamName. Then A/B/C produce the sorted standings.
+//   active   = confirmed=TRUE AND superseded<>TRUE AND teamName not blank
+//   teamTotal= SUMPRODUCT over the 6 picks XLOOKUP'd into the chosen Scores col
 const subTeamRange = `Submissions!$${colTeamName}$2:$${colTeamName}`
 const subConfirmed = `Submissions!$${colConfirmed}$2:$${colConfirmed}`
 const subSuperseded = `Submissions!$${colSuperseded}$2:$${colSuperseded}`
 const subSubmitted = `Submissions!$${colSubmittedAt}$2:$${colSubmittedAt}`
 const subPicks = `Submissions!$${colP1}$2:$${colPN}`
 
-// E2: active flag per row (array). BYROW evaluates each data row.
-const activeArr =
-  `=MAP(${subTeamRange},${subConfirmed},${subSuperseded},` +
-  `LAMBDA(tn,cf,ss,IF(tn="","",IF(AND(cf=TRUE,ss<>TRUE),TRUE,FALSE))))`
-// F2: teamTotal per row (array) — sum each row's 6 picks via XLOOKUP into Scores.
-const totalArr =
-  `=BYROW(${subPicks},LAMBDA(row,` +
-  `IF(INDEX(row,1,1)="","",SUMPRODUCT(IFERROR(XLOOKUP(row,${scoreId},${scoreTotal}),0)))))`
-// G2: submittedAt mirror (array), for the tie-break sort key.
-const submittedArr = `=ARRAYFORMULA(IF(${subTeamRange}="","",${subSubmitted}))`
-// H2: teamName mirror (array) — used as the FILTER source so the visible B
-// column never references itself (which would be circular).
-const teamArr = `=ARRAYFORMULA(IF(${subTeamRange}="","",${subTeamRange}))`
+function buildRankingRows(scoreTotalCol) {
+  const scoreTotal = scoreRange(scoreTotalCol)
+  // E2: active flag per row (array).
+  const activeArr =
+    `MAP(${subTeamRange},${subConfirmed},${subSuperseded},` +
+    `LAMBDA(tn,cf,ss,IF(tn="","",IF(AND(cf=TRUE,ss<>TRUE),TRUE,FALSE))))`
+  // F2: this round's team total per row (array) — sum the 6 picks via XLOOKUP.
+  const totalArr =
+    `BYROW(${subPicks},LAMBDA(row,` +
+    `IF(INDEX(row,1,1)="","",SUMPRODUCT(IFERROR(XLOOKUP(row,${scoreId},${scoreTotal}),0)))))`
+  // G2: submittedAt mirror; H2: teamName mirror (FILTER source, avoids self-ref).
+  const submittedArr = `ARRAYFORMULA(IF(${subTeamRange}="","",${subSubmitted}))`
+  const teamArr = `ARRAYFORMULA(IF(${subTeamRange}="","",${subTeamRange}))`
 
-const rankRows = [
-  // A1:C1 visible headers; E1:H1 helper headers (E:H can be hidden in the UI)
-  [
-    S('rank'),
-    S('teamName'),
-    S('total'),
-    S(''),
-    S('active'),
-    S('teamTotal'),
-    S('submittedAt'),
-    S('teamNameSrc'),
-  ],
-  [
-    // A2: rank numbers for as many rows as B2 spills.
-    F('IF(COUNTA(B2:B)=0,"",SEQUENCE(COUNTA(B2:B)))'),
-    // B2: sorted teamName of active rows. FILTER source = helpers H/F/G (NOT B).
-    // Sort keys: total desc, submittedAt asc, teamName asc.
-    F(
-      `IFERROR(INDEX(SORT(FILTER({$H$2:$H,$F$2:$F,$G$2:$G},$E$2:$E=TRUE),2,FALSE,3,TRUE,1,TRUE),0,1),"")`
-    ),
-    // C2: matching total column.
-    F(
-      `IFERROR(INDEX(SORT(FILTER({$H$2:$H,$F$2:$F,$G$2:$G},$E$2:$E=TRUE),2,FALSE,3,TRUE,1,TRUE),0,2),"")`
-    ),
-    S(''),
-    // E2/F2/G2/H2 helper arrays (formula strings include leading '='; strip it).
-    { f: activeArr.slice(1) },
-    { f: totalArr.slice(1) },
-    { f: submittedArr.slice(1) },
-    { f: teamArr.slice(1) },
-  ],
-]
+  return [
+    [S('rank'), S('teamName'), S('total'), S(''), S('active'), S('teamTotal'), S('submittedAt'), S('teamNameSrc')],
+    [
+      F('IF(COUNTA(B2:B)=0,"",SEQUENCE(COUNTA(B2:B)))'),
+      // B2: sorted teamName of active rows. FILTER source = helpers H/F/G (NOT B).
+      // Sort keys: total desc, submittedAt asc, teamName asc.
+      F(`IFERROR(INDEX(SORT(FILTER({$H$2:$H,$F$2:$F,$G$2:$G},$E$2:$E=TRUE),2,FALSE,3,TRUE,1,TRUE),0,1),"")`),
+      F(`IFERROR(INDEX(SORT(FILTER({$H$2:$H,$F$2:$F,$G$2:$G},$E$2:$E=TRUE),2,FALSE,3,TRUE,1,TRUE),0,2),"")`),
+      S(''),
+      F(activeArr),
+      F(totalArr),
+      F(submittedArr),
+      F(teamArr),
+    ],
+  ]
+}
+
+const rankHinRows = buildRankingRows(hinTotalCol)
+const rankRueckRows = buildRankingRows(rueckTotalCol)
+const rankGesamtRows = buildRankingRows(playerTotalCol)
 
 // ----------------------------- assemble xlsx -------------------------------
 const sheets = [
   { name: 'Submissions', xml: sheetXml(subRows) },
   { name: 'Players', xml: sheetXml(playersRows) },
   { name: 'Scores', xml: sheetXml(scoresRows) },
-  { name: 'Ranking', xml: sheetXml(rankRows) },
+  { name: 'Ranking_Gesamt', xml: sheetXml(rankGesamtRows) },
+  { name: 'Ranking_Hin', xml: sheetXml(rankHinRows) },
+  { name: 'Ranking_Rueck', xml: sheetXml(rankRueckRows) },
 ]
 
 const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -283,4 +300,9 @@ const zip = Buffer.concat([...locals, centralBuf, eocd])
 const out = new URL('../plattenplausch-sheet.xlsx', import.meta.url)
 writeFileSync(out, zip)
 console.log(`Wrote plattenplausch-sheet.xlsx (${zip.length} bytes)`)
-console.log(`  Players: ${players.length} rows | Scores: ${MATCHDAYS} matchdays | Submissions: header only (appendRow lands on row 2)`)
+console.log(
+  `  Players: ${players.length} (grouped by club) | Scores: MD1..MD${HIN_MATCHDAYS} Hin + MD${
+    HIN_MATCHDAYS + 1
+  }..MD${MATCHDAYS} Rück`
+)
+console.log('  Rankings: Ranking_Gesamt (website reads this), Ranking_Hin, Ranking_Rueck')

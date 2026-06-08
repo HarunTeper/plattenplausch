@@ -56,8 +56,9 @@
             <span class="big" :class="overBudget ? 'bad' : 'ok'" x-text="remaining"></span>
             <span class="sub" x-text="'/ ' + BUDGET + ' Pkt'"></span>
           </div>
+          <!-- Fill = REMAINING budget: starts full, drains as players are picked. -->
           <div class="track">
-            <div class="fill" :class="overBudget && 'over'" :style="`width:${fillPct}%`"></div>
+            <div class="fill" :class="overBudget && 'over'" :style="`width:${remainingPct}%`"></div>
           </div>
           <div class="pips">
             <template x-for="i in ROSTER_SIZE" :key="i">
@@ -75,6 +76,32 @@
         <!-- Player pool -->
         <section class="panel">
           <header><h2>Spielerpool</h2></header>
+
+          <!-- Per-club tabs ("Reiter") — browse the pool by Mannschaft. -->
+          <div class="tabs" role="tablist" aria-label="Nach Verein filtern">
+            <button
+              class="tab"
+              :class="clubFilter === '' && 'active'"
+              role="tab"
+              :aria-selected="clubFilter === ''"
+              @click="clubFilter = ''"
+            >
+              Alle
+            </button>
+            <template x-for="club in clubs" :key="club">
+              <button
+                class="tab"
+                :class="clubFilter === club && 'active'"
+                role="tab"
+                :aria-selected="clubFilter === club"
+                @click="clubFilter = club"
+              >
+                <span x-text="club"></span>
+                <span class="tab-badge" x-show="pickedInClub(club) > 0" x-text="pickedInClub(club)"></span>
+              </button>
+            </template>
+          </div>
+
           <div class="filters">
             <input type="text" placeholder="Name oder Verein suchen…" x-model="query" />
             <select x-model="posFilter">
