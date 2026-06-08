@@ -3,4 +3,5 @@ dist/
 .env
 .env.local
 apps-script/.clasp.json
+.claude/settings.local.json
 *.log

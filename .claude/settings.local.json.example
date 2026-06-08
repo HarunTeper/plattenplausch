@@ -1,0 +1,6 @@
+{
+  "//": "Copy to settings.local.json for personal, gitignored Claude Code overrides.",
+  "permissions": {
+    "allow": []
+  }
+}
