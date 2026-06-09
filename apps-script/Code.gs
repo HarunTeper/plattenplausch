@@ -189,12 +189,12 @@ function doGet(e) {
   var action = e && e.parameter ? e.parameter.action : '';
 
   if (!token) {
-    return htmlPage_('Plattenplausch', '<h1>Kein Token</h1><p>Dieser Link ist unvollständig.</p>');
+    return htmlPage_('Plattenplausch', '<div class="big">🤔</div><h1>Link <em>unvollständig</em></h1><p>Diesem Bestätigungslink fehlt der Token. Bitte nutze den Link aus deiner E-Mail.</p>');
   }
 
   var found = findByToken_(token);
   if (!found) {
-    return htmlPage_('Plattenplausch', '<h1>Link ungültig</h1><p>Wir konnten diese Einreichung nicht finden. Vielleicht wurde sie bereits entfernt.</p>');
+    return htmlPage_('Plattenplausch', '<div class="big">🔍</div><h1>Link <em>ungültig</em></h1><p>Wir konnten diese Einreichung nicht finden — vielleicht wurde sie bereits entfernt. Stelle dein Team einfach neu auf.</p>');
   }
 
   // The CONFIRM action only runs on the button POST-style click (action=confirm).
@@ -206,7 +206,7 @@ function doGet(e) {
   if (found.confirmed) {
     return htmlPage_(
       'Bereits bestätigt',
-      '<h1>Schon bestätigt ✔</h1><p>Dein Team <b>' + esc_(found.teamName) + '</b> ist bereits bestätigt.</p>' + rankingLink_()
+      '<div class="big">✔</div><h1>Schon <em>bestätigt</em></h1><p>Dein Team <span class="team">' + esc_(found.teamName) + '</span> ist bereits fixiert. Alles gut!</p>' + rankingLink_()
     );
   }
 
@@ -238,7 +238,12 @@ function confirmToken_(token) {
 
     var teamName = rowObj[col.teamName];
     if (rowObj[col.confirmed] === true || String(rowObj[col.confirmed]).toUpperCase() === 'TRUE') {
-      return htmlPage_('Bereits bestätigt', '<h1>Schon bestätigt ✔</h1><p>Dein Team <b>' + esc_(teamName) + '</b> war bereits bestätigt.</p>' + rankingLink_());
+      return htmlPage_(
+        'Bereits bestätigt',
+        '<div class="big">✔</div><h1>Schon <em>bestätigt</em></h1>' +
+          '<p>Dein Team <span class="team">' + esc_(teamName) + '</span> war bereits fixiert. Alles gut!</p>' +
+          rankingLink_()
+      );
     }
 
     // Mark confirmed. NOTE: deadline is intentionally NOT re-checked here.
@@ -256,8 +261,12 @@ function confirmToken_(token) {
     var roundLabel = roundLabel_(String(rowObj[col.round]));
     return htmlPage_(
       'Team bestätigt',
-      '<h1>Team bestätigt! 🏓</h1><p>Dein ' + esc_(roundLabel) + '-Team <b>' + esc_(teamName) +
-        '</b> ist jetzt fixiert. Viel Erfolg!</p>' + rankingLink_()
+      '<div class="big">🏓</div>' +
+        '<span class="pill">' + esc_(roundLabel) + '</span>' +
+        '<h1>Team <em>bestätigt!</em></h1>' +
+        '<p>Dein ' + esc_(roundLabel) + '-Team <span class="team">' + esc_(teamName) +
+        '</span> ist jetzt für die Saison fixiert. Viel Erfolg! 🔥</p>' +
+        rankingLink_()
     );
   } finally {
     lock.releaseLock();
@@ -501,23 +510,52 @@ function pruneUnconfirmed_() {
 
 // ----------------------------- HTML / UTIL ---------------------------------
 
+// Render a styled roster card for `found` (looks player ids up in the round's
+// pool to show name / club / position / price + total spend bar). Falls back to
+// raw ids if a player isn't found in the pool.
+function teamRosterHtml_(found) {
+  var pool = loadPlayers_(found.round); // {id:{name,club,position,price}}
+  var ids = found.players.filter(String);
+  var spent = 0;
+  var items = ids
+    .map(function (id) {
+      var p = pool[String(id)];
+      if (!p) return '<li><span class="pos">?</span><span><b class="pname">' + esc_(String(id)) + '</b><span class="pclub">unbekannt</span></span><span class="pprice">—</span></li>';
+      spent += Number(p.price) || 0;
+      return (
+        '<li><span class="pos">' + esc_(p.position) + '</span>' +
+        '<span><b class="pname">' + esc_(p.name) + '</b><span class="pclub">' + esc_(p.club) + '</span></span>' +
+        '<span class="pprice">' + (Number(p.price) || 0) + '</span></li>'
+      );
+    })
+    .join('');
+  var pct = Math.max(0, Math.min(100, Math.round((spent / BUDGET) * 100)));
+  return (
+    '<ul class="roster">' + items + '</ul>' +
+    '<div class="spend"><span class="lbl">Budget genutzt</span>' +
+    '<span class="val">' + spent + ' / ' + BUDGET + ' Pkt</span></div>' +
+    '<div class="bar"><i style="width:' + pct + '%"></i></div>'
+  );
+}
+
 function confirmPromptPage_(found, token) {
-  var confirmUrl = ScriptApp.getService().getUrl() + '?action=confirm&token=' + encodeURIComponent(token);
-  var picks = found.players.filter(String).map(esc_).join(', ');
   var label = roundLabel_(found.round);
   var body =
-    '<h1>' + esc_(label) + '-Team bestätigen</h1>' +
-    '<p>Bitte bestätige dein ' + esc_(label) + '-Team <b>' + esc_(found.teamName) + '</b>:</p>' +
-    '<p style="color:#9fb3c4">Spieler: ' + picks + '</p>' +
-    // target="_top" makes the confirm navigate the WHOLE tab, not the Apps
-    // Script iframe — otherwise the result page (served by script.google.com with
-    // X-Frame-Options: DENY) can't render embedded and the browser shows an error.
-    '<form method="get" target="_top" action="' + ScriptApp.getService().getUrl() + '">' +
+    '<span class="pill">' + esc_(label) + '</span>' +
+    '<h1>Dein Team <em>bestätigen</em></h1>' +
+    '<p>Gleich geschafft! Prüfe deine Aufstellung und fixiere dein ' + esc_(label) + '-Team:</p>' +
+    '<div class="team">' + esc_(found.teamName) + '</div>' +
+    teamRosterHtml_(found) +
+    // target="_top" makes the confirm navigate the WHOLE tab, not the Apps Script
+    // iframe — otherwise the result page (script.google.com, X-Frame-Options:
+    // DENY) can't render embedded and the browser shows an error.
+    '<form method="get" target="_top" action="' + ScriptApp.getService().getUrl() + '" style="margin-top:18px">' +
     '<input type="hidden" name="action" value="confirm" />' +
     '<input type="hidden" name="token" value="' + esc_(token) + '" />' +
-    '<button type="submit" style="background:#ff5a1f;color:#0b1b2b;border:none;padding:14px 24px;border-radius:10px;font-size:18px;font-weight:bold;cursor:pointer">Mein Team bestätigen</button>' +
+    '<button type="submit" class="btn">🏓 Mein Team fixieren</button>' +
     '</form>' +
-    '<p style="color:#9fb3c4;font-size:13px;margin-top:16px">Klicke den Button, um dein Team zu fixieren. Das passiert nicht automatisch.</p>';
+    '<p class="hint">Erst mit dem Klick wird dein Team fixiert — automatisch passiert nichts. ' +
+    'Danach ist dieses ' + esc_(label) + '-Team für die Saison gesperrt.</p>';
   return htmlPage_('Team bestätigen', body);
 }
 
@@ -525,17 +563,20 @@ function rankingLink_() {
   // Set RANKING_PAGE_URL in Script Properties to your Pages ranking.html URL.
   var url = PropertiesService.getScriptProperties().getProperty('RANKING_PAGE_URL') || '';
   if (!url) return '';
-  return '<p><a href="' + url + '" style="color:#1d6fb8">→ Zur Tabelle</a></p>';
+  return '<a class="btn ghost" target="_top" href="' + esc_(url) + '" style="margin-top:16px">Zur Tabelle →</a>';
 }
 
 function htmlPage_(title, bodyHtml) {
   var html =
     '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8" />' +
     '<meta name="viewport" content="width=device-width, initial-scale=1" />' +
-    '<title>' + esc_(title) + ' · Plattenplausch</title></head>' +
-    '<body style="margin:0;background:#0b1b2b;color:#eef3f7;font-family:Arial,sans-serif">' +
-    '<div style="max-width:560px;margin:8vh auto;padding:32px;background:#16314a;border-radius:16px">' +
-    '<div style="font-weight:bold;letter-spacing:1px;color:#ff5a1f;text-transform:uppercase;margin-bottom:8px">Plattenplausch</div>' +
+    '<title>' + esc_(title) + ' · Plattenplausch</title>' +
+    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>' +
+    '<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;700;800&family=Sora:wght@400;600;700&display=swap" rel="stylesheet">' +
+    '<style>' + pageCss_() + '</style></head>' +
+    '<body><div class="bg"></div><div class="card">' +
+    '<div class="brand"><span class="dot"></span><span class="brandtext">Plattenplausch' +
+    '<small>TT Fantasy League</small></span></div>' +
     bodyHtml +
     '</div></body></html>';
   return HtmlService.createHtmlOutput(html)
@@ -544,6 +585,45 @@ function htmlPage_(title, bodyHtml) {
     // Allow the page to render when navigated top-level (post-confirm), avoiding
     // the browser's "can't display embedded page" block.
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+// Broadcast-aesthetic CSS for the confirm/result pages — matches the website
+// (TT orange + ITTF blue on navy, Saira Condensed display + Sora body).
+function pageCss_() {
+  return [
+    ':root{--orange:#ff5a1f;--orange2:#ff7a45;--blue:#1d6fb8;--blue2:#3a9be0;--navy:#0b1b2b;--panel:#16314a;--panel2:#1c3a57;--ink:#eef3f7;--dim:#9fb3c4;--line:#284a68;--ok:#38d39f}',
+    '*{box-sizing:border-box}',
+    'body{margin:0;min-height:100vh;font-family:"Sora",system-ui,sans-serif;color:var(--ink);background:var(--navy);-webkit-font-smoothing:antialiased;display:flex;align-items:flex-start;justify-content:center;padding:6vh 16px 40px}',
+    '.bg{position:fixed;inset:0;z-index:0;background:radial-gradient(1100px 560px at 82% -10%,rgba(29,111,184,.22),transparent 60%),radial-gradient(820px 460px at -8% 8%,rgba(255,90,31,.18),transparent 55%)}',
+    '.card{position:relative;z-index:1;max-width:560px;width:100%;background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:18px;box-shadow:0 24px 60px rgba(0,0,0,.45);padding:30px 28px}',
+    '.brand{display:flex;align-items:center;gap:12px;margin-bottom:18px}',
+    '.brand .dot{width:34px;height:34px;border-radius:50%;background:var(--orange);position:relative;box-shadow:0 0 0 4px rgba(255,90,31,.18),inset 0 -6px 10px rgba(0,0,0,.25)}',
+    '.brand .dot::after{content:"";position:absolute;right:-5px;top:-5px;width:11px;height:11px;border-radius:50%;background:var(--ink);box-shadow:0 0 0 3px var(--blue)}',
+    '.brandtext{font-family:"Saira Condensed",sans-serif;font-weight:800;text-transform:uppercase;letter-spacing:.5px;font-size:1.35rem;line-height:1}',
+    '.brandtext small{display:block;color:var(--dim);font-size:.62rem;letter-spacing:2px;font-weight:600}',
+    'h1{font-family:"Saira Condensed",sans-serif;font-weight:800;text-transform:uppercase;letter-spacing:.5px;font-size:clamp(1.9rem,5vw,2.6rem);line-height:.98;margin:6px 0 4px}',
+    'h1 em{color:var(--orange);font-style:normal}',
+    'p{color:var(--dim);margin:8px 0}',
+    '.pill{display:inline-block;font-family:"Saira Condensed",sans-serif;text-transform:uppercase;letter-spacing:1px;font-weight:800;font-size:.85rem;background:var(--orange);color:var(--navy);padding:3px 12px;border-radius:999px;margin-bottom:6px}',
+    '.team{font-family:"Saira Condensed",sans-serif;font-weight:800;font-size:1.6rem;color:var(--ink);letter-spacing:.5px}',
+    '.roster{list-style:none;margin:18px 0;padding:0;border:1px solid var(--line);border-radius:12px;overflow:hidden}',
+    '.roster li{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;padding:11px 14px;border-bottom:1px solid rgba(40,74,104,.55);background:rgba(255,255,255,.02)}',
+    '.roster li:last-child{border-bottom:none}',
+    '.pos{font-family:"Saira Condensed",sans-serif;font-size:.72rem;text-transform:uppercase;letter-spacing:1px;padding:3px 8px;border-radius:6px;background:rgba(29,111,184,.22);color:var(--blue2);white-space:nowrap}',
+    '.pname{font-weight:600}.pclub{display:block;color:var(--dim);font-size:.8rem}',
+    '.pprice{font-family:"Saira Condensed",sans-serif;font-weight:800;font-size:1.25rem;color:var(--orange);font-variant-numeric:tabular-nums}',
+    '.spend{display:flex;justify-content:space-between;align-items:baseline;margin:14px 0 4px}',
+    '.spend .lbl{font-size:.72rem;letter-spacing:2px;text-transform:uppercase;color:var(--dim)}',
+    '.spend .val{font-family:"Saira Condensed",sans-serif;font-weight:800;font-size:1.5rem;font-variant-numeric:tabular-nums}',
+    '.bar{height:12px;border-radius:999px;background:#0a1622;border:1px solid var(--line);overflow:hidden}',
+    '.bar > i{display:block;height:100%;background:linear-gradient(90deg,var(--orange),var(--orange2))}',
+    '.btn{display:inline-block;font-family:"Saira Condensed",sans-serif;text-transform:uppercase;letter-spacing:1px;font-weight:800;font-size:1.25rem;border:none;cursor:pointer;border-radius:12px;padding:15px 26px;background:var(--orange);color:var(--navy);width:100%;margin-top:6px}',
+    '.btn:hover{background:var(--orange2)}',
+    '.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line);font-size:1.05rem}',
+    '.hint{font-size:.8rem;color:var(--dim);margin-top:14px}',
+    '.big{font-size:3.2rem;line-height:1;margin:4px 0 10px}',
+    'a.link{color:var(--blue2);text-decoration:none;font-weight:600}a.link:hover{text-decoration:underline}',
+  ].join('');
 }
 
 function json_(obj) {
