@@ -15,7 +15,7 @@ passwords, no sessions.** Each round's team is locked once confirmed.
 - **Datastore:** one Google Sheet (tabs `Submissions`, `Players_Hin`, `Players_Rueck`,
   `Scores_Hin`, `Scores_Rueck`, `Ranking_Gesamt`, `Ranking_Hin`, `Ranking_Rueck`). Each Scores
   sheet is numbered from `MD1` (no offset between rounds).
-- **Deploy:** GitLab Pages (`node:20-alpine` CI). Custom HTTPS domain required for the SW.
+- **Deploy:** GitHub Pages via `.github/workflows/pages.yml` (Node 20). Custom HTTPS domain required for the SW.
 
 ## Golden rules (do not violate)
 - **Develop on Linux**, Node 20, to match CI exactly.
@@ -54,11 +54,13 @@ public/         static assets (PWA icons, favicon)
 apps-script/    Apps Script backend (Code.gs, appsscript.json, .clasp.json.example)
 scripts/        icon + players export helpers
 docs/superpowers/  design spec + plans
-.gitlab-ci.yml  build → pages (+ optional manual clasp deploy)
-README.md       full bootstrap runbook (Sheet, Turnstile, clasp, CI vars)
+.github/workflows/pages.yml  build Vite app → deploy to GitHub Pages
+README.md       full bootstrap runbook (Sheet, Turnstile, clasp, repo Variables)
 ```
 
 ## Bootstrap order (resolves the circular dependency)
 See README.md "Runbook" + `docs/SHEET-SETUP.md`. Short version: import sheet →
 Players_Hin/Rueck + players-*.json → Turnstile → clasp push → clasp deploy (record stable id +
-/exec URL) → set CI vars → push to main.
+/exec URL) → create GitHub repo + set the 3 VITE_* repo Variables → Settings → Pages → Source =
+"GitHub Actions" → push to main (Actions builds & deploys). clasp push/deploy stays a local/manual
+step — CI does not run clasp.

@@ -5,7 +5,7 @@ community. Draft a **6-player team within 100 points**, submit it tied to an ema
 **double opt-in**), and climb a cumulative weekly-scoring table. **No accounts, no passwords, no
 sessions.** Teams are locked for the season once confirmed — set and forget.
 
-- **Frontend:** Alpine.js + Vite + vite-plugin-pwa → static files on GitLab Pages.
+- **Frontend:** Alpine.js + Vite + vite-plugin-pwa → static files on GitHub Pages.
 - **Backend:** one Google Apps Script Web App (`doPost` / `doGet`).
 - **Datastore:** one Google Sheet. No host, no SMTP, no database.
 
@@ -32,7 +32,7 @@ already in `.env.example`. The draft page works fully offline of the backend unt
 ## Architecture & data flow
 
 ```
-Static PWA (Alpine + Vite, GitLab Pages)
+Static PWA (Alpine + Vite, GitHub Pages)
   ├─ draft team, enforce budget <= 100 live (src/draft.js)
   ├─ POST {email, teamName, players:[ids], turnstileToken, honeypot}  (text/plain — no preflight)
   │     └─▶ Apps Script doPost(): Turnstile → deadline → validate → PENDING row → confirm email
@@ -131,13 +131,17 @@ Turnstile secret. Do it in this order:
    > `VITE_WEBAPP_URL` and **404s every confirmation link already emailed.**
 6. **Create the prune trigger** (Apps Script editor → Triggers → Add trigger →
    `pruneUnconfirmed_` → time-driven → hour timer) so abandoned pending rows are cleaned up.
-7. **Set GitLab CI/CD variables** (Settings → CI/CD → Variables), all non-secret:
+7. **Create a GitHub repo** and set the three GitHub Actions repository **Variables**
+   (Settings → Secrets and variables → Actions → **Variables** tab), all non-secret:
    - `VITE_WEBAPP_URL` — the `/exec` URL from step 5.
    - `VITE_RANKING_CSV_URL` — `https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?sheet=Ranking_Gesamt`.
    - `VITE_TURNSTILE_SITE_KEY` — the Turnstile **site** key.
-   - (optional) `VITE_BASE` if not using a custom domain (e.g. `/plattenplausch/`).
-8. **Push to `main`** → the `pages` job publishes. Configure a **custom HTTPS domain**
-   (required for the service worker / installable PWA). Run the end-to-end verification below.
+   - `VITE_BASE` is **auto-derived from the repo name** by the workflow (repo `plattenplausch`
+     → `/plattenplausch/`; repo `<user>.github.io` → `/`), so you generally don't set it manually.
+8. **Enable Pages:** Settings → Pages → **Source = "GitHub Actions"**.
+9. **Push to `main`** → the `.github/workflows/pages.yml` workflow builds the Vite app and
+   deploys to GitHub Pages. Configure a **custom HTTPS domain** (required for the service
+   worker / installable PWA). Run the end-to-end verification below.
 
 Thereafter:
 - **Backend change:** `clasp push && clasp deploy -i <ID>` (same id).
@@ -206,7 +210,7 @@ Thereafter:
 /apps-script/      clasp backend (Code.gs, appsscript.json, .clasp.json.example)
 /scripts/          icon + players export helpers
 /docs/superpowers/ design spec
-.gitlab-ci.yml     build → pages (+ optional manual clasp deploy)
+.github/workflows/pages.yml  build Vite app → deploy to GitHub Pages
 CLAUDE.md          agent/contributor guidance
 ```
 

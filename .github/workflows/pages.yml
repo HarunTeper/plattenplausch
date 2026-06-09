@@ -1,0 +1,74 @@
+# Build the Vite PWA and deploy it to GitHub Pages.
+#
+# Required repository config (Settings → Secrets and variables → Actions →
+# "Variables" tab — these are NON-secret build-time config):
+#   VITE_WEBAPP_URL          Apps Script /exec URL
+#   VITE_RANKING_CSV_URL     Published-to-web CSV URL of Ranking_Gesamt
+#   VITE_TURNSTILE_SITE_KEY  Cloudflare Turnstile site key (public)
+#
+# Also: Settings → Pages → Source = "GitHub Actions".
+#
+# The base path is derived automatically from the repo name:
+#   repo "plattenplausch"        → site at /plattenplausch/  → base=/plattenplausch/
+#   repo "<user>.github.io"      → site at /                 → base=/
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment; don't cancel an in-progress one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Compute base path from repo name
+        id: base
+        run: |
+          REPO="${GITHUB_REPOSITORY#*/}"
+          if [ "$REPO" = "${GITHUB_REPOSITORY_OWNER}.github.io" ]; then
+            echo "base=/" >> "$GITHUB_OUTPUT"
+          else
+            echo "base=/$REPO/" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build
+        env:
+          VITE_BASE: ${{ steps.base.outputs.base }}
+          VITE_WEBAPP_URL: ${{ vars.VITE_WEBAPP_URL }}
+          VITE_RANKING_CSV_URL: ${{ vars.VITE_RANKING_CSV_URL }}
+          VITE_TURNSTILE_SITE_KEY: ${{ vars.VITE_TURNSTILE_SITE_KEY }}
+        run: npm run build
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
