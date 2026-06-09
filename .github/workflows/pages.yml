@@ -54,10 +54,23 @@ jobs:
       - name: Build
         env:
           VITE_BASE: ${{ steps.base.outputs.base }}
-          VITE_WEBAPP_URL: ${{ vars.VITE_WEBAPP_URL }}
-          VITE_RANKING_CSV_URL: ${{ vars.VITE_RANKING_CSV_URL }}
-          VITE_TURNSTILE_SITE_KEY: ${{ vars.VITE_TURNSTILE_SITE_KEY }}
+          # Read from repo Variables OR Secrets (whichever tab they were added to).
+          VITE_WEBAPP_URL: ${{ vars.VITE_WEBAPP_URL || secrets.VITE_WEBAPP_URL }}
+          VITE_RANKING_CSV_URL: ${{ vars.VITE_RANKING_CSV_URL || secrets.VITE_RANKING_CSV_URL }}
+          VITE_TURNSTILE_SITE_KEY: ${{ vars.VITE_TURNSTILE_SITE_KEY || secrets.VITE_TURNSTILE_SITE_KEY }}
         run: npm run build
+
+      - name: Sanity-check env got baked in
+        run: |
+          for v in VITE_WEBAPP_URL VITE_RANKING_CSV_URL VITE_TURNSTILE_SITE_KEY; do
+            if ! grep -rq "$(printf '%s' "${!v}" | cut -c1-12)" dist/assets/ 2>/dev/null; then
+              echo "::warning::$v did not appear in the build output — check it's set in Settings → Secrets and variables → Actions."
+            fi
+          done
+        env:
+          VITE_WEBAPP_URL: ${{ vars.VITE_WEBAPP_URL || secrets.VITE_WEBAPP_URL }}
+          VITE_RANKING_CSV_URL: ${{ vars.VITE_RANKING_CSV_URL || secrets.VITE_RANKING_CSV_URL }}
+          VITE_TURNSTILE_SITE_KEY: ${{ vars.VITE_TURNSTILE_SITE_KEY || secrets.VITE_TURNSTILE_SITE_KEY }}
 
       - uses: actions/upload-pages-artifact@v3
         with:
