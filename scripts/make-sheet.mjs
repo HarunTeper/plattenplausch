@@ -225,11 +225,15 @@ function buildGesamtRankingRows() {
     `IFERROR(LET(` +
     `act,MAP(${subTeamRange},${subConfirmed},${subSuperseded},LAMBDA(tn,cf,ss,IF(tn="",FALSE,AND(cf=TRUE,ss<>TRUE)))),` +
     `eml,IF(act,${subEmailRange},""),` +
-    `tot,IF(act,IF(${subRoundRange}="HIN",${hinSums},IF(${subRoundRange}="RUECK",${rueckSums},0)),""),` +
+    // tot: a NUMBER for active rows, 0 otherwise (never "" — keeps the array
+    // numeric so the SUMPRODUCT aggregation below is reliable).
+    `tot,IF(act,IF(${subRoundRange}="HIN",${hinSums},IF(${subRoundRange}="RUECK",${rueckSums},0)),0),` +
     `nm,IF(act,${subTeamRange},""),` +
     `sub,IF(act,${subSubmitted},""),` +
     `ue,UNIQUE(FILTER(eml,eml<>"")),` +
-    `uTot,MAP(ue,LAMBDA(e,SUMIF(eml,e,tot))),` +
+    // SUMIF's sum_range is unreliable on an in-memory array → use SUMPRODUCT,
+    // which is array-native. (ISNUMBER guard is belt-and-suspenders.)
+    `uTot,MAP(ue,LAMBDA(e,SUMPRODUCT((eml=e)*IF(ISNUMBER(tot),tot,0)))),` +
     `uName,MAP(ue,LAMBDA(e,INDEX(FILTER(nm,eml=e),1))),` +
     `uEarl,MAP(ue,LAMBDA(e,MINIFS(sub,eml,e))),` +
     `sorted,SORT(HSTACK(uName,uTot,uEarl),2,FALSE,3,TRUE,1,TRUE),` +
