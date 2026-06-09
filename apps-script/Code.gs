@@ -468,7 +468,13 @@ function sendConfirmEmail_(email, teamName, token, round) {
     '<p style="color:#666;font-size:13px">Oder kopiere diesen Link: ' + url + '</p>' +
     '<p style="color:#666;font-size:13px">Falls du das nicht warst, ignoriere diese E-Mail einfach.</p>' +
     '</div>';
-  MailApp.sendEmail({ to: email, subject: subject, htmlBody: html });
+  // `name` sets the sender DISPLAY name (shows "Plattenplausch" instead of the
+  // Google account's personal name) — works on any account. The actual sender
+  // ADDRESS is still the account running this script; to brand that, run the
+  // script under a dedicated Gmail (e.g. plattenplausch.liga@gmail.com) or a
+  // verified domain alias. Workspace users can add `noReply: true` to send from
+  // a no-reply address.
+  MailApp.sendEmail({ to: email, subject: subject, htmlBody: html, name: 'Plattenplausch' });
 }
 
 // Track global mail counters in Script Properties (hour + day buckets).
