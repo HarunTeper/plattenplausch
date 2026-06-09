@@ -223,13 +223,15 @@ function buildGesamtRankingRows() {
   // column of the sorted result this cell emits (1=teamName, 2=total).
   const sortedLet = (outCol) =>
     `IFERROR(LET(` +
-    `act,MAP(${subTeamRange},${subConfirmed},${subSuperseded},LAMBDA(tn,cf,ss,IF(tn="",FALSE,AND(cf=TRUE,ss<>TRUE)))),` +
-    `eml,IF(act,${subEmailRange},""),` +
+    // act mirrors the per-round builder EXACTLY: explicit TRUE/FALSE, and every
+    // consumer compares act=TRUE (strict) so a non-FALSE value can't read truthy.
+    `act,MAP(${subTeamRange},${subConfirmed},${subSuperseded},LAMBDA(tn,cf,ss,IF(tn="",FALSE,IF(AND(cf=TRUE,ss<>TRUE),TRUE,FALSE)))),` +
+    `eml,IF(act=TRUE,${subEmailRange},""),` +
     // tot: a NUMBER for active rows, 0 otherwise (never "" — keeps the array
     // numeric so the SUMPRODUCT aggregation below is reliable).
-    `tot,IF(act,IF(${subRoundRange}="HIN",${hinSums},IF(${subRoundRange}="RUECK",${rueckSums},0)),0),` +
-    `nm,IF(act,${subTeamRange},""),` +
-    `sub,IF(act,${subSubmitted},""),` +
+    `tot,IF(act=TRUE,IF(${subRoundRange}="HIN",${hinSums},IF(${subRoundRange}="RUECK",${rueckSums},0)),0),` +
+    `nm,IF(act=TRUE,${subTeamRange},""),` +
+    `sub,IF(act=TRUE,${subSubmitted},""),` +
     `ue,UNIQUE(FILTER(eml,eml<>"")),` +
     // SUMIF's sum_range is unreliable on an in-memory array → use SUMPRODUCT,
     // which is array-native. (ISNUMBER guard is belt-and-suspenders.)
