@@ -1,11 +1,16 @@
 # Google Sheet setup — step by step
 
 This repo ships a ready-to-import workbook: **`plattenplausch-sheet.xlsx`** (regenerate any time
-with `npm run make:sheet`). It contains all four tabs with the right headers, your seeded
-players, the `Scores` matchday grid, and **the Ranking formulas already written**. You mostly
-just import it and fill in points.
+with `npm run make:sheet`). It contains all seven tabs with the right headers, your seeded
+players (two pools), the `Scores` matchday grid, and **all the Ranking formulas already written**.
+You mostly just import it and fill in points.
 
-> Regenerate after editing `src/players.json`: `npm run make:sheet` re-seeds Players + Scores.
+**The season is two independent drafts** (Hinrunde + Rückrunde), each a fresh 100-point team.
+The whole-season table (`Ranking_Gesamt`) is the **sum of a user's Hin and Rück points, paired by
+their email**.
+
+> Regenerate after editing `src/players-hin.json` / `src/players-rueck.json`:
+> `npm run make:sheet` re-seeds both Players tabs + Scores.
 
 ---
 
@@ -13,60 +18,68 @@ just import it and fill in points.
 
 1. Go to <https://sheets.google.com> → **Blank spreadsheet** (or use an existing one).
 2. **File → Import → Upload** → drop `plattenplausch-sheet.xlsx`.
-3. In the import dialog choose **"Replace spreadsheet"** (cleanest — gives you exactly the four
+3. In the import dialog choose **"Replace spreadsheet"** (cleanest — gives you exactly these
    tabs). Click **Import data**.
-4. You now have four tabs: **Submissions, Players, Scores, Ranking**.
-5. Rename the spreadsheet to e.g. *"Plattenplausch — Liga 2026"*.
+4. You now have seven tabs: **Submissions, Players_Hin, Players_Rueck, Scores, Ranking_Gesamt,
+   Ranking_Hin, Ranking_Rueck**.
+5. Rename the spreadsheet to e.g. *"Plattenplausch — Liga 26/27"*.
 
-> ⚠️ Keep the spreadsheet **private / access-restricted**. The PWA only reads the `Ranking` tab
+> ⚠️ Keep the spreadsheet **private / access-restricted**. The PWA only reads a `Ranking_*` tab
 > through the public gviz endpoint, which exposes just `rank/teamName/total`. Never put email in
-> the `Ranking` tab.
+> any Ranking tab.
 
 ---
 
 ## 2. What each tab is and what you do with it
 
-### `Players` — your roster + prices (single source of truth)
-Columns: `id | name | club | position | price`. Pre-filled with the 24 seeded players,
-**grouped by club** (sorted by club, then name) so data entry is easy.
-- Edit names/clubs/prices to match the real season. **Keep `position` to one of**
+### `Players_Hin` / `Players_Rueck` — the two roster pools (source of truth + prices)
+Columns: `id | name | club | position | price`. Two tabs because the season is two drafts and a
+player may change club between rounds. **Ids are prefixed per round: `h001…` in Players_Hin,
+`r001…` in Players_Rueck** — distinct on purpose, so a transferred player is two listings.
+- Edit names/clubs/prices per round to match the real Meldungen. **Keep `position` to one of**
   `Abwehr`, `Allrounder`, `Offensiv` (these match the position caps in the code).
-- If you change players here, **also update `src/players.json`** so the website shows the same
-  roster — either edit it by hand, or run the export (see README) and commit it.
-- `id` values must be unique and stable (the submissions reference them).
+- If you change players here, **also update `src/players-hin.json` / `src/players-rueck.json`** so
+  the website shows the same pools — edit by hand or run the export (see README) and commit.
+- `id` values must be unique across BOTH pools and stable (submissions + Scores reference them).
 
 ### `Scores` — weekly points you enter (the game engine)
-Columns: `id | name | club | MD1 … MD11 | MD12 … MD22 | hinTotal | rueckTotal | playerTotal`.
-The season is split into two rounds: **Hinrunde = MD1–MD11**, **Rückrunde = MD12–MD22**.
-- One row per player (already seeded, grouped by club, all matchdays = `0`).
-- **After each matchday, type each player's points into that matchday's column** (fill `MD1` for
-  everyone, then `MD2` next week …).
-- `hinTotal` (`=SUM(MD1:MD11)`), `rueckTotal` (`=SUM(MD12:MD22)`), and `playerTotal`
-  (`=hinTotal+rueckTotal`) are formulas — **don't edit them.**
+Columns: `id | name | club | round | MD1 … MD11 | MD12 … MD22 | hinTotal | rueckTotal | playerTotal`.
+**One row per listing** across both pools: the `h*` rows (round=HIN) carry MD1–MD11, the `r*` rows
+(round=RUECK) carry MD12–MD22. The off-round matchday cells just stay 0.
+- Already seeded (Hin listings first, then Rück, each grouped by club, all matchdays = `0`).
+- **After each matchday, type each listing's points into that matchday's column.** For a Hinrunde
+  matchday fill the `h*` rows' `MD1…MD11`; for a Rückrunde matchday fill the `r*` rows' `MD12…MD22`.
+- `hinTotal`/`rueckTotal`/`playerTotal` are formulas — **don't edit them.**
 - Different round split or matchday count? Change `HIN_MATCHDAYS` / `MATCHDAYS` in
-  `scripts/make-sheet.mjs` and regenerate (`npm run make:sheet`), or adjust the SUM ranges by hand.
+  `scripts/make-sheet.mjs` and regenerate (`npm run make:sheet`).
 
 ### `Submissions` — written by the backend (you don't type here)
-Columns: `submittedAt | email | teamName | p1..p6 | token | confirmed | confirmedAt | superseded`
-(13 columns, A–M). **Header row only** — the Apps Script `appendRow()`s each submission onto the
-first empty row (row 2 onward) and flips `confirmed`/`superseded`.
-- **Don't pre-fill or leave stray data in any cell below the header**, or appends would skip past
-  it. There are no helper columns here — all computation lives in the `Ranking` tab.
+Columns: `submittedAt | email | teamName | round | p1..p6 | token | confirmed | confirmedAt |
+superseded` (14 columns, A–N; `round` ∈ `HIN`/`RUECK`). **Header row only** — the Apps Script
+`appendRow()`s each submission onto the first empty row and flips `confirmed`/`superseded`.
+- **Don't pre-fill or leave stray data below the header**, or appends would skip past it. No
+  helper columns here — all computation lives in the Ranking tabs.
 
-### `Ranking_Gesamt` / `Ranking_Hin` / `Ranking_Rueck` — auto-computed standings
-Three standings tabs, identical shape, differing only in which Scores total they sum:
-- **`Ranking_Gesamt`** sums `playerTotal` (whole season) — **this is what the website shows.**
-- **`Ranking_Hin`** sums `hinTotal` (Hinrunde only).
-- **`Ranking_Rueck`** sums `rueckTotal` (Rückrunde only).
+### `Ranking_Hin` / `Ranking_Rueck` — per-round standings
+Visible `rank | teamName | total` (A–C); helper cols `active | teamTotal | submittedAt |
+teamNameSrc` (E–H) are whole-column array formulas over `Submissions`:
+- `active` (E) = confirmed + non-superseded + non-blank **AND `round` matches this tab**.
+- `teamTotal` (F) = sum of that row's 6 picks' round-total via `XLOOKUP` into `Scores`
+  (`Ranking_Hin` → `hinTotal`; `Ranking_Rueck` → `rueckTotal`).
+- `B2`/`C2` `FILTER` active rows and `SORT` by total desc → submittedAt asc → teamName asc.
 
-Each tab: visible columns `rank | teamName | total` (A–C); helper columns `active | teamTotal |
-submittedAt | teamNameSrc` (E–H) hold whole-column **array formulas** reading the raw
-`Submissions` columns:
-- `active` (E) = `TRUE` only for confirmed + non-superseded, non-blank rows.
-- `teamTotal` (F) = sum of that row's 6 picks' round-total via `XLOOKUP` into `Scores`.
-- `submittedAt` (G) / `teamNameSrc` (H) mirror those columns for the sort/output.
-- `B2`/`C2` then `FILTER` to active rows and `SORT` by total desc → submittedAt asc → teamName
-  asc; `A2` numbers the ranks.
+### `Ranking_Gesamt` — combined standings (read by the website)
+Gesamt = a user's **Hin points + Rück points, paired by their email** (a missing round counts 0).
+Visible `rank | teamName | total` (A–C). Helper cols (hide them):
+- E–I (per Submissions row): `active`, `email`, `rowTotal` (Hin row→hinTotal, Rück row→rueckTotal),
+  `teamNameSrc`, `submittedAt`.
+- K–N (per distinct email): `uEmail` (`UNIQUE`), `uTotal` (`SUMIF` of rowTotal), `uName`
+  (the email's fixed team name), `uEarliest` (`MINIFS` submittedAt — the tie-break).
+- `B2`/`C2` `SORT` the per-email aggregate by total desc → earliest asc → name asc. Email lives
+  only in the helper columns for the join and is **never** emitted to A:C.
+
+**Teams are two independent drafts, name fixed per email.** Don't type in any Ranking tab — they
+fill themselves. Hide helper columns (E onward) for tidiness; it doesn't affect the formulas.
 
 Teams are drafted **once** and locked all season — Hin/Rück are two scoring views of the *same*
 team, not two separate drafts. **Don't type anything in these tabs** — they fill themselves. Hide
@@ -82,8 +95,9 @@ After importing, grab the spreadsheet ID from the URL:
 - **Ranking endpoint** (for `VITE_RANKING_CSV_URL`):
   `https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?sheet=Ranking_Gesamt`
   *(swap `Ranking_Gesamt` → `Ranking_Hin` or `Ranking_Rueck` to show a single round instead).*
-- **Players export endpoint** (for `npm run export:players`, optional):
-  `https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?sheet=Players&tqx=out:json`
+- **Players export endpoints** (for `npm run export:players`, optional — one per pool):
+  `https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?sheet=Players_Hin&tqx=out:json`
+  `https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?sheet=Players_Rueck&tqx=out:json`
 
 > The gviz endpoint works without "Publish to web", but the spreadsheet must be readable by the
 > request. For a private sheet the gviz read still works for the **owner's** deployed Apps Script
@@ -105,21 +119,29 @@ deploy the Web App, record the deployment id + `/exec` URL).
 
 ## 5. Quick sanity test (no website needed)
 
-1. In `Scores`, set a few players' `MD1` to non-zero numbers. Watch `playerTotal` update.
-2. In `Submissions` row 2, manually type a fake confirmed row to test the Ranking join:
-   - `submittedAt` (A) = any date, `teamName` (C) = `Test`, `p1..p6` (D–I) = six real player
-     `id`s from `Players`, `confirmed` (K) = `TRUE`, `superseded` (M) = `FALSE`.
-   - On `Ranking_Gesamt`, helper col `E2` should show `TRUE`, `F2` should equal the sum of those
-     players' `playerTotal`, and `A2:C2` should list `Test` with that total. `Ranking_Hin` /
-     `Ranking_Rueck` should show the same team with its Hin / Rück partial totals.
-   - **Delete the fake row afterwards** so the backend's first real append lands on row 2.
+1. In `Scores`, set a few `h*` rows' `MD1` and a few `r*` rows' `MD12` to non-zero numbers. Watch
+   `hinTotal` / `rueckTotal` / `playerTotal` update.
+2. In `Submissions` row 2 + row 3, type two fake confirmed rows for the SAME email to test the
+   Gesamt email-join (columns: A submittedAt, B email, C teamName, **D round**, E–J p1–p6,
+   L confirmed, N superseded):
+   - Row 2: `email` = `t@x.com`, `teamName` = `Test`, `round` (D) = `HIN`, `p1..p6` (E–J) = six
+     `h*` ids from `Players_Hin`, `confirmed` (L) = `TRUE`, `superseded` (N) = `FALSE`.
+   - Row 3: same `email` = `t@x.com`, `teamName` = `Test`, `round` (D) = `RUECK`, `p1..p6` = six
+     `r*` ids from `Players_Rueck`, `confirmed` (L) = `TRUE`, `superseded` (N) = `FALSE`.
+   - `Ranking_Hin` should list `Test` with the Hin total; `Ranking_Rueck` with the Rück total;
+     `Ranking_Gesamt` should list `Test` **once** with the *sum* of both (email-paired).
+   - A different team name on row 3 would be rejected by the backend in real use (name is fixed
+     per email); for this in-sheet test just keep them the same.
+   - **Delete the fake rows afterwards** so the backend's first real append lands on row 2.
 
 ---
 
 ## 6. Where the real roster comes from (mytischtennis.de) — pending
 
-The seeded `Players` are placeholders. The real roster for season **26/27** comes from the
-clubs' **Mannschaftsmeldungen** on mytischtennis.de.
+The seeded `Players_Hin` / `Players_Rueck` are placeholders (the Rück pool simulates a couple of
+transfers so the model is exercised). The real rosters for season **26/27** come from the clubs'
+**Mannschaftsmeldungen** on mytischtennis.de — note the **Vorrunde** and **Rückrunde** Meldungen
+differ, which is exactly why there are two pools with distinct ids.
 
 - **All TTBL clubs (the league table):**
   <https://www.mytischtennis.de/click-tt/DTTB/26--27/ligen/TTBL/gruppe/518219/tabelle/gesamt>

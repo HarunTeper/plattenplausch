@@ -1,13 +1,16 @@
-// Export the Players sheet to src/players.json from a gviz/tq CSV/JSON endpoint.
-// The Players sheet is the single source of truth for roster + prices; commit the
-// regenerated players.json when the roster changes. Usage:
-//   PLAYERS_URL='https://docs.google.com/spreadsheets/d/<ID>/gviz/tq?sheet=Players&tqx=out:json' \
-//     node scripts/export-players.mjs
+// Export a Players pool tab to its src JSON from a gviz/tq JSON endpoint.
+// The Players_Hin / Players_Rueck tabs are the source of truth for each round's
+// roster + prices; commit the regenerated JSON when a roster changes. Usage:
+//   PLAYERS_URL='https://docs.google.com/spreadsheets/d/<ID>/gviz/tq?sheet=Players_Hin&tqx=out:json' \
+//   OUT=players-hin.json  node scripts/export-players.mjs
+// (OUT defaults to players-hin.json; use players-rueck.json for the Rück pool.)
 import { writeFileSync } from 'node:fs'
 
 const url = process.env.PLAYERS_URL
+const out = process.env.OUT || 'players-hin.json'
 if (!url) {
-  console.error('Set PLAYERS_URL to the Players gviz/tq endpoint (tqx=out:json).')
+  console.error('Set PLAYERS_URL to a Players_Hin/Players_Rueck gviz/tq endpoint (tqx=out:json).')
+  console.error('Optionally set OUT=players-hin.json | players-rueck.json (default players-hin.json).')
   process.exit(1)
 }
 
@@ -33,7 +36,7 @@ const players = json.table.rows
   .filter((p) => p.id)
 
 writeFileSync(
-  new URL('../src/players.json', import.meta.url),
+  new URL('../src/' + out, import.meta.url),
   JSON.stringify(players, null, 2) + '\n'
 )
-console.log(`Wrote ${players.length} players to src/players.json`)
+console.log(`Wrote ${players.length} players to src/${out}`)

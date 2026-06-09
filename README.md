@@ -46,42 +46,50 @@ The client sends **player IDs only, never prices** — the server looks up price
 
 ---
 
-## The game (scoring)
+## The game (scoring) — two mini-seasons
 
-- The organizer enters **one points value per player per matchday** in the `Scores` tab.
-- A team's weekly score = sum of its players' points; the season score is cumulative.
-- The season splits into **Hinrunde (MD1–MD11)** and **Rückrunde (MD12–MD22)**. Teams are
-  drafted **once** and locked all season — the two rounds are two scoring *views* of the same
-  team, not two drafts.
-- Three standings tabs join each **active** team's picks to the relevant per-player total, sum,
-  and sort: **`Ranking_Gesamt`** (whole season — the website default), **`Ranking_Hin`**,
-  **`Ranking_Rueck`**. Only **confirmed, non-superseded** teams appear.
+- **Two independent drafts.** Users draft a **Hinrunde** team and, separately, a **Rückrunde**
+  team — each a fresh 100-point, 6-player roster. The two teams can be completely different.
+- **Two lock dates.** `HIN_LOCK` (before MD1) and `RUECK_LOCK` (before MD12). The site shows
+  whichever round is currently open; both closed → a closed state. Locks live in `src/config.js`
+  (`ROUNDS`) and `apps-script/Code.gs` (`HIN_LOCK`/`RUECK_LOCK`) — keep them in sync.
+- **Identity = email; team name fixed per email.** Once a user confirms a team under a name, the
+  other round must reuse that same name (only the roster changes). Mismatched name → rejected.
+- **Scoring:** organizer enters one points value per player per matchday in `Scores`
+  (Hinrunde MD1–MD11, Rückrunde MD12–MD22).
+- **Three standings:** **`Ranking_Hin`** (Hin team over Hin matchdays), **`Ranking_Rueck`**
+  (Rück team over Rück matchdays), and **`Ranking_Gesamt`** = a user's **Hin + Rück points,
+  paired by email** (missing round = 0) — the website default. Only confirmed, non-superseded
+  teams appear.
 
 ---
 
 ## Google Sheet — the system of record (organizer creates this manually)
 
-This repo ships **`plattenplausch-sheet.xlsx`** — a ready-to-import workbook with all six tabs,
-your seeded players (**grouped by club**), the Hin/Rück matchday grid, and **all the Ranking
-formulas already wired**. Regenerate with `npm run make:sheet`.
+This repo ships **`plattenplausch-sheet.xlsx`** — a ready-to-import workbook with all seven tabs,
+the two seeded player pools (**grouped by club**), the Hin/Rück matchday grid, and **all the
+Ranking formulas already wired**. Regenerate with `npm run make:sheet`.
 
 ➡️ **Follow [`docs/SHEET-SETUP.md`](docs/SHEET-SETUP.md)** for click-by-click import, per-tab
-usage, the sanity test, and where the real roster comes from (mytischtennis Meldungen — still
-empty as of season 26/27 prep, so wait for the finals).
+usage, the sanity test, and where the real rosters come from (mytischtennis Vor-/Rückrunde
+Meldungen — still empty as of season 26/27 prep, so wait for the finals).
 
 The tabs at a glance:
 
 | Tab | What it is |
 | --- | --- |
-| `Submissions` | Written by the backend. Header-only on import (appends land on row 2): `submittedAt, email, teamName, p1..p6, token, confirmed, confirmedAt, superseded`. `email` normalized; each pick its own column; `confirmed`/`superseded` booleans. |
-| `Players` | Single source of truth for validation + prices: `id, name, club, position, price`. Positions: `Abwehr`/`Allrounder`/`Offensiv` (match `POSITION_RULES` in `src/config.js` and `apps-script/Code.gs`). Export to `src/players.json` when it changes. |
-| `Scores` | `id, name, club, MD1..MD22, hinTotal, rueckTotal, playerTotal` (formulas). Organizer types matchday points; totals auto-compute. |
-| `Ranking_Gesamt` / `_Hin` / `_Rueck` | Auto-computed `rank, teamName, total` over active confirmed teams; tie-break earliest `submittedAt`, then teamName. **Never emit email.** |
+| `Submissions` | Written by the backend. Header-only on import (appends land on row 2): `submittedAt, email, teamName, round, p1..p6, token, confirmed, confirmedAt, superseded`. `round` ∈ `HIN`/`RUECK`; `email` normalized; `confirmed`/`superseded` booleans. |
+| `Players_Hin` / `Players_Rueck` | Per-round pools (source of truth for validation + prices): `id, name, club, position, price`. Ids prefixed `h*` / `r*` (distinct — a player may change club per round). Positions `Abwehr`/`Allrounder`/`Offensiv` (match `POSITION_RULES`). Export to `src/players-hin.json` / `src/players-rueck.json` when changed. |
+| `Scores` | `id, name, club, round, MD1..MD22, hinTotal, rueckTotal, playerTotal` (formulas). One row per `h*`/`r*` listing; `h*` rows carry MD1–11, `r*` rows MD12–22. |
+| `Ranking_Hin` / `Ranking_Rueck` | Per-round `rank, teamName, total` over active teams of that round. |
+| `Ranking_Gesamt` | Combined `rank, teamName, total` — Hin+Rück summed per email, tie-break earliest `submittedAt` then teamName. **Never emits email.** |
 
-Export the Players tab to `src/players.json` when the roster changes:
+Export a Players pool to its JSON when a roster changes (one per pool):
 ```bash
-PLAYERS_URL='https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?sheet=Players&tqx=out:json' \
-  npm run export:players
+PLAYERS_URL='https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?sheet=Players_Hin&tqx=out:json' \
+  OUT=players-hin.json npm run export:players
+PLAYERS_URL='https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?sheet=Players_Rueck&tqx=out:json' \
+  OUT=players-rueck.json npm run export:players
 ```
 
 **Share/access:** keep the Sheet **restricted** (not public). The PWA reads only a `Ranking_*`
@@ -95,10 +103,10 @@ Ranking tab.
 The frontend needs the `/exec` URL; the Apps Script needs the Sheet; the deploy needs the
 Turnstile secret. Do it in this order:
 
-1. **Create the Sheet** — import `plattenplausch-sheet.xlsx` (tabs `Submissions, Players, Scores,
-   Ranking_Gesamt, Ranking_Hin, Ranking_Rueck`). See `docs/SHEET-SETUP.md`.
-2. **Fill `Players`**, then export → `src/players.json` and commit
-   (`npm run export:players`, or edit by hand).
+1. **Create the Sheet** — import `plattenplausch-sheet.xlsx` (tabs `Submissions, Players_Hin,
+   Players_Rueck, Scores, Ranking_Gesamt, Ranking_Hin, Ranking_Rueck`). See `docs/SHEET-SETUP.md`.
+2. **Fill `Players_Hin` / `Players_Rueck`**, then export → `src/players-hin.json` /
+   `src/players-rueck.json` and commit (`npm run export:players` per pool, or edit by hand).
 3. **Register a Cloudflare Turnstile site** → note the **site key** (public) + **secret**.
 4. **Bind & push the script** (from `apps-script/`):
    ```bash
@@ -151,19 +159,22 @@ Thereafter:
 - [ ] Non-empty honeypot → `{ok:false}`, no row.
 - [ ] Valid submit → a `PENDING` row appears and a confirm email arrives (check spam).
 - [ ] A **passive GET** of the link does **not** confirm; only the button does.
-- [ ] Two teams, same email, later `submittedAt`, both confirmed → the **earlier** becomes
-      `superseded=TRUE`.
-- [ ] Confirming an **earlier**-submitted team *after* a later one is already confirmed → the
-      earlier one stays `superseded=TRUE` (latest-submitted wins).
-- [ ] Submit after `SEASON_LOCK` → rejected. A late **confirm** of a valid row still works.
-- [ ] `Foo@x.com` and `foo@x.com` are treated as the same identity.
-- [ ] Over-budget / unknown player / prices-in-payload → `{ok:false}`, no row
-      (payload prices are ignored; server looks them up).
+- [ ] Two teams, same email, same round, later `submittedAt`, both confirmed → the **earlier**
+      becomes `superseded=TRUE` (supersession is scoped per round).
+- [ ] Confirming an **earlier**-submitted team *after* a later one (same round) is already
+      confirmed → the earlier one stays `superseded=TRUE` (latest-submitted wins).
+- [ ] **Name-lock:** after confirming a team, submitting the other round with a *different* team
+      name → `{ok:false}` (same name accepted, any case). Picks may differ.
+- [ ] **Round resolution:** before `HIN_LOCK` a submit is stored `round=HIN`; between the locks
+      `round=RUECK`; after `RUECK_LOCK` → rejected. A late **confirm** of a valid row still works.
+- [ ] `Foo@x.com` and `foo@x.com` are treated as the same identity (and pair in Gesamt).
+- [ ] Over-budget / unknown player / wrong-round player / prices-in-payload → `{ok:false}`, no row.
 
 **Ranking:**
-- [ ] Sample `Scores` → `Ranking_Gesamt` sums correctly; `Ranking_Hin`/`Ranking_Rueck` show the
-      round partials; `ranking.html` shows `rank/teamName/total` (no emails), only active
-      confirmed teams, tie-break by earliest `submittedAt`.
+- [ ] Sample `Scores`: `Ranking_Hin`/`Ranking_Rueck` show the round teams' partials; a user with
+      a Hin **and** a Rück team appears **once** in `Ranking_Gesamt` with the **sum**; a user with
+      only one round appears with that round's points (other = 0). `ranking.html` shows
+      `rank/teamName/total` (no emails), tie-break by earliest `submittedAt`.
 
 **CI:**
 - [ ] Push to `main` → Pages publishes over HTTPS; full flow (draft → submit → email → confirm
