@@ -1,0 +1,6 @@
+Version 1 am 09.06.2026, 14:46
+Bereitstellungs-ID
+AKfycbzwlRXik6fGThUmWeXM8u8jtrL3cXANTeuSCB6dofQngsQmpsbBEQFgYAtDQGxm28JLHg
+Web-App
+URL
+https://script.google.com/macros/s/AKfycbzwlRXik6fGThUmWeXM8u8jtrL3cXANTeuSCB6dofQngsQmpsbBEQFgYAtDQGxm28JLHg/exec

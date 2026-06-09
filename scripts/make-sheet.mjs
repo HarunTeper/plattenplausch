@@ -196,80 +196,53 @@ function buildRoundRankingRows(roundKey, scoreIdRange, scoreTotalRange) {
 }
 
 // --- Combined table (Ranking_Gesamt) ---
-// Gesamt = Hin points + Rück points, paired by EMAIL (missing round counts as
-// 0). Each active row contributes its round-appropriate total. We then aggregate
-// by distinct email: total = SUMIFS over active rows of that email; name = the
-// team name on that email's rows (fixed per email); tie-break = earliest
-// submittedAt for that email. Email is used only for the in-sheet join — never
-// emitted. Helper cols E:I hold per-row arrays; J:L aggregate per distinct email.
-// Column map for Ranking_Gesamt:
-//   A rank | B teamName | C total           (visible output)
-//   E active | F email | G rowTotal | H teamNameSrc | I submittedAt   (per-row arrays)
-//   K uEmail | L uTotal | M uName | N uEarliest                       (per-email aggregate)
-// Email is used only for the in-sheet join — never emitted to A:C.
+// Gesamt = Hin points + Rück points, paired by EMAIL (missing round counts 0).
+// PRIVACY: email is the join key but must NEVER appear in any cell on this tab
+// (the tab is published to the web). So the ENTIRE aggregation happens inside a
+// single LET in B2 / C2 — email lives only as a LET-local intermediate and is
+// never written to a cell. There are NO helper columns: only A rank | B teamName
+// | C total. Nothing returnable contains an address.
+//
+// Inside the LET (per output cell):
+//   act   = active mask (confirmed, not superseded, non-blank teamName)
+//   eml   = email where active else ""        (LET-local, never output)
+//   tot   = each active row's round total (Hin→Scores_Hin, Rück→Scores_Rueck)
+//   nm    = teamName where active else ""
+//   sub   = submittedAt where active else ""
+//   ue    = UNIQUE active emails              (LET-local, never output)
+//   uTot  = SUMIF tot by ue ;  uName = team name per ue ;  uEarl = MINIFS sub
+//   sorted= SORT {uName,uTot,uEarl} by total desc, earliest asc, name asc
+// B2 outputs column 1 (name); C2 outputs column 2 (total).
 function buildGesamtRankingRows() {
-  // Bounded local helper-column ranges.
-  const E = `$E$2:$E$${LAST}`
-  const F_ = `$F$2:$F$${LAST}`
-  const G = `$G$2:$G$${LAST}`
-  const H = `$H$2:$H$${LAST}`
-  const I = `$I$2:$I$${LAST}`
-  const K = `$K$2:$K$${LAST}`
-  const L = `$L$2:$L$${LAST}`
-  const M = `$M$2:$M$${LAST}`
-  const N = `$N$2:$N$${LAST}`
-
-  // E: active (any round). MAP inputs all bounded → equal length.
-  const activeArr =
-    `MAP(${subTeamRange},${subConfirmed},${subSuperseded},` +
-    `LAMBDA(tn,cf,ss,IF(tn="",FALSE,IF(AND(cf=TRUE,ss<>TRUE),TRUE,FALSE))))`
-  // F: email of active rows (else "").
-  const emailArr = `ARRAYFORMULA(IF(${E}=TRUE,${subEmailRange},""))`
-  // G: each active row's round-appropriate team total — combine two bounded
-  //    BYROW pick-sums (hin / rück) via the row's round. No INDEX-by-i.
   const hinSums =
     `BYROW(${subPicks},LAMBDA(row,IF(INDEX(row,1,1)="",0,SUMPRODUCT(IFERROR(XLOOKUP(row,${hinScoreId},${hinScoreTotal}),0)))))`
   const rueckSums =
     `BYROW(${subPicks},LAMBDA(row,IF(INDEX(row,1,1)="",0,SUMPRODUCT(IFERROR(XLOOKUP(row,${rueckScoreId},${rueckScoreTotal}),0)))))`
-  const rowTotal =
-    `ARRAYFORMULA(IF(${E}<>TRUE,"",IF(${subRoundRange}="HIN",${hinSums},IF(${subRoundRange}="RUECK",${rueckSums},0))))`
-  // H: teamName of active rows; I: submittedAt of active rows.
-  const teamArr = `ARRAYFORMULA(IF(${E}=TRUE,${subTeamRange},""))`
-  const submittedArr = `ARRAYFORMULA(IF(${E}=TRUE,${subSubmitted},""))`
 
-  // K: distinct active emails (spills). L/M/N: aggregates mapped over the K spill.
-  const distinctEmails = `IFERROR(UNIQUE(FILTER(${F_},${F_}<>"")),"")`
-  const sumByEmail = `MAP(${K},LAMBDA(e,IF(e="","",SUMIF(${F_},e,${G}))))`
-  const nameByEmail =
-    `MAP(${K},LAMBDA(e,IF(e="","",IFERROR(INDEX(FILTER(${H},${F_}=e),1),""))))`
-  const earliestByEmail = `MAP(${K},LAMBDA(e,IF(e="","",MINIFS(${I},${F_},e))))`
+  // Shared LET preamble computing the sorted aggregate. `outCol` picks which
+  // column of the sorted result this cell emits (1=teamName, 2=total).
+  const sortedLet = (outCol) =>
+    `IFERROR(LET(` +
+    `act,MAP(${subTeamRange},${subConfirmed},${subSuperseded},LAMBDA(tn,cf,ss,IF(tn="",FALSE,AND(cf=TRUE,ss<>TRUE)))),` +
+    `eml,IF(act,${subEmailRange},""),` +
+    `tot,IF(act,IF(${subRoundRange}="HIN",${hinSums},IF(${subRoundRange}="RUECK",${rueckSums},0)),""),` +
+    `nm,IF(act,${subTeamRange},""),` +
+    `sub,IF(act,${subSubmitted},""),` +
+    `ue,UNIQUE(FILTER(eml,eml<>"")),` +
+    `uTot,MAP(ue,LAMBDA(e,SUMIF(eml,e,tot))),` +
+    `uName,MAP(ue,LAMBDA(e,INDEX(FILTER(nm,eml=e),1))),` +
+    `uEarl,MAP(ue,LAMBDA(e,MINIFS(sub,eml,e))),` +
+    `sorted,SORT(HSTACK(uName,uTot,uEarl),2,FALSE,3,TRUE,1,TRUE),` +
+    `INDEX(sorted,0,${outCol})),"")`
 
   return [
+    [S('rank'), S('teamName'), S('total')],
     [
-      S('rank'), S('teamName'), S('total'), S(''),
-      S('active'), S('email'), S('rowTotal'), S('teamNameSrc'), S('submittedAt'), S(''),
-      S('uEmail'), S('uTotal'), S('uName'), S('uEarliest'),
-    ],
-    [
-      // rank: a running 1,2,3… over the non-blank teamName cells in B (spills in
-      // lockstep with B, so tied teams still get distinct sequential ranks). SCAN
-      // accumulates the count; blank rows stay "".
+      // rank: running 1,2,3… over non-blank teamName cells in B (ties already
+      // broken inside the sort, so each gets a distinct sequential rank).
       F(`ARRAYFORMULA(IF($B$2:$B$${LAST}="","",SCAN(0,$B$2:$B$${LAST},LAMBDA(acc,v,IF(v="",acc,acc+1)))))`),
-      // B2/C2: sort per-email aggregate {uName,uTotal,uEarliest} by total desc →
-      // earliest asc → name asc. FILTER drops blank-email rows.
-      F(`IFERROR(INDEX(SORT(FILTER({${M},${L},${N}},${K}<>""),2,FALSE,3,TRUE,1,TRUE),0,1),"")`),
-      F(`IFERROR(INDEX(SORT(FILTER({${M},${L},${N}},${K}<>""),2,FALSE,3,TRUE,1,TRUE),0,2),"")`),
-      S(''),
-      F(activeArr), // E2
-      F(emailArr), // F2
-      F(rowTotal), // G2
-      F(teamArr), // H2
-      F(submittedArr), // I2
-      S(''), // J2 spacer
-      F(distinctEmails), // K2
-      F(sumByEmail), // L2
-      F(nameByEmail), // M2
-      F(earliestByEmail), // N2
+      F(sortedLet(1)), // B2: teamName (spills)
+      F(sortedLet(2)), // C2: total (spills)
     ],
   ]
 }
