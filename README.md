@@ -1,11 +1,13 @@
 # 🏓 Plattenplausch — Table Tennis Fantasy League
 
-A serverless **Progressive Web App** fantasy league for the German **TTBL**, built for a podcast
-community. Draft a **6-player team within 100 points**, submit it tied to an email (verified by
-**double opt-in**), and climb a cumulative weekly-scoring table. **No accounts, no passwords, no
-sessions.** Teams are locked for the season once confirmed — set and forget.
+A serverless fantasy league for the German **TTBL**, built for a podcast community. The season is
+**two independent drafts** (Hinrunde + Rückrunde); each is a fresh **6-player team within 100
+points**, submitted tied to an email (verified by **double opt-in**). The whole-season table is
+the sum of both rounds, paired by email. **No accounts, no passwords, no sessions.** Each round's
+team is locked once confirmed.
 
-- **Frontend:** Alpine.js + Vite + vite-plugin-pwa → static files on GitHub Pages.
+- **Frontend:** Alpine.js + Vite → static files on GitHub Pages. Plain static site (no service
+  worker / PWA — it was removed because it served stale builds).
 - **Backend:** one Google Apps Script Web App (`doPost` / `doGet`).
 - **Datastore:** one Google Sheet. No host, no SMTP, no database.
 
@@ -32,17 +34,21 @@ already in `.env.example`. The draft page works fully offline of the backend unt
 ## Architecture & data flow
 
 ```
-Static PWA (Alpine + Vite, GitHub Pages)
+Static site (Alpine + Vite, GitHub Pages)
   ├─ draft team, enforce budget <= 100 live (src/draft.js)
-  ├─ POST {email, teamName, players:[ids], turnstileToken, honeypot}  (text/plain — no preflight)
-  │     └─▶ Apps Script doPost(): Turnstile → deadline → validate → PENDING row → confirm email
-  │            click link ─▶ doGet(): click-through page ─▶ button confirms (confirmed=TRUE)
-  ├─ players.json (static, in repo — exported from the Players sheet)
-  └─ GET ranking via gviz/tq JSON ◀── Google Sheet "Ranking_Gesamt" tab (organizer's formulas)
+  ├─ POST {email, teamName, round, players:[ids], turnstileToken, honeypot}  (text/plain — no preflight)
+  │     └─▶ Apps Script doPost(): Turnstile → round/deadline → validate → PENDING row → confirm email
+  │            email link ─▶ confirm.html (our domain): POST {action:'lookup'} → show roster
+  │                          → button → POST {action:'confirm'} → confirmed=TRUE
+  ├─ players-hin.json / players-rueck.json (static, in repo — exported from the Players_* sheets)
+  └─ GET ranking via published-to-web CSV ◀── Google Sheet "Ranking_Gesamt" tab (organizer's formulas)
 ```
 
-The client sends **player IDs only, never prices** — the server looks up prices from the
-`Players` sheet, so the 100-point budget can't be forged.
+The client sends **player IDs only, never prices** — the server looks up prices from the round's
+`Players_*` sheet, so the 100-point budget can't be forged. The ranking is read from the
+**publish-to-web CSV** (the spreadsheet itself stays private; only the `Ranking_Gesamt` tab is
+published, and it never contains email). The confirm step runs on **our** `confirm.html` so users
+never see Google's "unverified app" warning.
 
 ---
 
@@ -92,9 +98,14 @@ PLAYERS_URL='https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?sheet=Pla
   OUT=players-rueck.json npm run export:players
 ```
 
-**Share/access:** keep the Sheet **restricted** (not public). The PWA reads only a `Ranking_*`
-tab via the public gviz endpoint, exposing just `rank/teamName/total` — never put email in any
-Ranking tab.
+**Share/access:** keep the Sheet **restricted** (not public) and **Publish to web only the
+`Ranking_Gesamt` tab**. The site reads that tab's published **CSV**, exposing just
+`rank/teamName/total` — never put email in any Ranking tab. (gviz/tq, used by the player-export
+script above, needs a readable sheet and is for the owner's export only — not the public read.)
+
+> Re-importing the workbook re-creates the tabs, so the `Ranking_Gesamt` **gid changes** and the
+> publish lapses. After any re-import: **re-Publish to web** and update `VITE_RANKING_CSV_URL`
+> (GitHub Variable + `.env`) to the new `…/pub?gid=…&output=csv` link.
 
 ---
 
@@ -120,7 +131,12 @@ Turnstile secret. Do it in this order:
    ```
    In the Apps Script editor: **Project Settings → Script Properties** add:
    - `TURNSTILE_SECRET` = your Turnstile secret.
-   - `RANKING_PAGE_URL` = your deployed `ranking.html` URL (used for the "→ Tabelle" link).
+   - `CONFIRM_PAGE_URL` = your deployed `confirm.html` URL (e.g.
+     `https://<user>.github.io/plattenplausch/confirm.html`) — the email links here so users
+     confirm on **your** branded page, not the Apps Script page (no Google "unverified app"
+     warning). If unset, the email falls back to the Apps Script click-through page.
+   - `RANKING_PAGE_URL` = your deployed `ranking.html` URL (used for the "→ Tabelle" link on
+     confirm result pages).
 5. **Deploy the Web App** (Deploy → New deployment → **Web app**, *Execute as: me*,
    *Who has access: Anyone*). **Record the stable deployment id and the `/exec` URL.**
    On every later backend change, redeploy the **same id**:
@@ -134,14 +150,18 @@ Turnstile secret. Do it in this order:
 7. **Create a GitHub repo** and set the three GitHub Actions repository **Variables**
    (Settings → Secrets and variables → Actions → **Variables** tab), all non-secret:
    - `VITE_WEBAPP_URL` — the `/exec` URL from step 5.
-   - `VITE_RANKING_CSV_URL` — `https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?sheet=Ranking_Gesamt`.
+   - `VITE_RANKING_CSV_URL` — the **published-to-web CSV** of `Ranking_Gesamt`
+     (`https://docs.google.com/spreadsheets/d/e/<PUB_ID>/pub?gid=<GID>&single=true&output=csv`),
+     **without** surrounding quotes.
    - `VITE_TURNSTILE_SITE_KEY` — the Turnstile **site** key.
    - `VITE_BASE` is **auto-derived from the repo name** by the workflow (repo `plattenplausch`
      → `/plattenplausch/`; repo `<user>.github.io` → `/`), so you generally don't set it manually.
 8. **Enable Pages:** Settings → Pages → **Source = "GitHub Actions"**.
 9. **Push to `main`** → the `.github/workflows/pages.yml` workflow builds the Vite app and
-   deploys to GitHub Pages. Configure a **custom HTTPS domain** (required for the service
-   worker / installable PWA). Run the end-to-end verification below.
+   deploys to GitHub Pages (`https://<user>.github.io/<repo>/`). A custom HTTPS domain is optional.
+10. **Add the live host to Turnstile:** Cloudflare → your Turnstile widget → **Hostnames** → add
+    your Pages host (e.g. `<user>.github.io`), or the widget won't load on the live site.
+11. Run `npm run smoke` and the end-to-end verification below.
 
 Thereafter:
 - **Backend change:** `clasp push && clasp deploy -i <ID>` (same id).
@@ -154,17 +174,22 @@ Thereafter:
 
 ## Verification (end-to-end)
 
+**Automated:** `npm run smoke` — hits the live site end-to-end (each page serves with the right
+Alpine root, confirm bundle is current, ranking CSV is real CSV not an HTML login wall, backend
+lookup responds, no leftover `sw.js`). Run this after every deploy.
+
 **Frontend (`npm run dev`):**
-- [ ] Budget meter updates live as you add/remove players.
+- [ ] Budget meter updates live (starts full, drains) as you add/remove players.
 - [ ] "Add" buttons disable at the budget limit, the roster limit (6), and position caps.
 - [ ] Submit is blocked while over budget / form invalid.
-- [ ] PWA installs and passes a Lighthouse PWA check (needs the production build over HTTPS).
+- [ ] The open round (Hin/Rück) is shown; both-closed shows the closed state.
 
 **Apps Script (Web App + editor):**
 - [ ] Missing/invalid Turnstile token → `{ok:false}`, **no row written**.
 - [ ] Non-empty honeypot → `{ok:false}`, no row.
 - [ ] Valid submit → a `PENDING` row appears and a confirm email arrives (check spam).
-- [ ] A **passive GET** of the link does **not** confirm; only the button does.
+- [ ] Email link opens **`confirm.html`** (our domain, no Google warning), shows the roster, and
+      only the **button** confirms — merely loading the page (or a prefetch) does **not** confirm.
 - [ ] Two teams, same email, same round, later `submittedAt`, both confirmed → the **earlier**
       becomes `superseded=TRUE` (supersession is scoped per round).
 - [ ] Confirming an **earlier**-submitted team *after* a later one (same round) is already
@@ -206,9 +231,9 @@ Thereafter:
 ## Repo layout
 
 ```
-/                  Vite frontend (src/, public/, vite.config.js)
+/                  Vite frontend (src/index.html, ranking.html, confirm.html, *.js, players-*.json)
 /apps-script/      clasp backend (Code.gs, appsscript.json, .clasp.json.example)
-/scripts/          icon + players export helpers
+/scripts/          make-sheet, make-icons, export-players, smoke
 /docs/superpowers/ design spec
 .github/workflows/pages.yml  build Vite app → deploy to GitHub Pages
 CLAUDE.md          agent/contributor guidance
