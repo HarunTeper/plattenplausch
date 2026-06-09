@@ -74,6 +74,13 @@ function doPost(e) {
   try {
     var body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
 
+    // Action router (text/plain JSON POSTs from confirm.html, so no CORS preflight):
+    //   action 'lookup'  → read-only team details for a token (to render the page)
+    //   action 'confirm' → confirm the team (the real opt-in action)
+    // No action → a new team SUBMISSION (the original flow below).
+    if (body.action === 'lookup') return lookupTeam_(body.token);
+    if (body.action === 'confirm') return confirmTokenJson_(body.token);
+
     // 1. Honeypot — a bot filled the hidden field.
     if (body.honeypot && String(body.honeypot).trim() !== '') {
       return json_({ ok: false, error: 'Ungültige Anfrage.' });
@@ -281,6 +288,79 @@ function confirmToken_(token) {
   }
 }
 
+// ---- JSON variants for the branded confirm.html page (no Google warning) ----
+
+// Read-only: return team name + round + roster details for a token, so
+// confirm.html can render the team before the user clicks confirm. Never
+// confirms, never returns email.
+function lookupTeam_(token) {
+  if (!token) return json_({ ok: false, error: 'missing-token' });
+  var found = findByToken_(token);
+  if (!found) return json_({ ok: false, error: 'not-found' });
+  var pool = loadPlayers_(found.round); // {id:{name,club,position,price}}
+  var players = found.players.filter(String).map(function (id) {
+    var p = pool[String(id)] || {};
+    return {
+      id: String(id),
+      name: p.name || String(id),
+      club: p.club || '',
+      position: p.position || '',
+      price: Number(p.price) || 0,
+    };
+  });
+  return json_({
+    ok: true,
+    teamName: found.teamName,
+    round: found.round,
+    roundLabel: roundLabel_(found.round),
+    confirmed: found.confirmed,
+    players: players,
+  });
+}
+
+// Confirm a token and return JSON (same logic as confirmToken_, no HTML). The
+// double-opt-in property is preserved: this only runs on the explicit
+// action=confirm POST from the button, never on a passive page load.
+function confirmTokenJson_(token) {
+  if (!token) return json_({ ok: false, error: 'missing-token' });
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var sheet = getSheet_(SHEET_SUBMISSIONS, submissionsHeader_());
+    var data = sheet.getDataRange().getValues();
+    var col = colIndex_();
+    var rowNum = -1, rowObj = null;
+    for (var r = 1; r < data.length; r++) {
+      if (String(data[r][col.token]) === String(token)) {
+        rowNum = r + 1;
+        rowObj = data[r];
+        break;
+      }
+    }
+    if (rowNum === -1) return json_({ ok: false, error: 'not-found' });
+
+    var teamName = rowObj[col.teamName];
+    var roundLabel = roundLabel_(String(rowObj[col.round]));
+    var already =
+      rowObj[col.confirmed] === true || String(rowObj[col.confirmed]).toUpperCase() === 'TRUE';
+    if (already) {
+      return json_({ ok: true, already: true, teamName: teamName, roundLabel: roundLabel });
+    }
+
+    // Mark confirmed (deadline intentionally NOT re-checked here).
+    sheet.getRange(rowNum, col.confirmed + 1).setValue(true);
+    sheet.getRange(rowNum, col.confirmedAt + 1).setValue(new Date());
+    recomputeSupersession_(
+      sheet,
+      String(rowObj[col.email]).trim().toLowerCase(),
+      String(rowObj[col.round])
+    );
+    return json_({ ok: true, already: false, teamName: teamName, roundLabel: roundLabel });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 /**
  * Among confirmed=TRUE rows for `email` IN `round`, the one with the latest
  * submittedAt is active (superseded=FALSE); all others superseded=TRUE.
@@ -457,7 +537,14 @@ function roundLabel_(round) {
 // ----------------------------- EMAIL + QUOTA -------------------------------
 
 function sendConfirmEmail_(email, teamName, token, round) {
-  var url = ScriptApp.getService().getUrl() + '?token=' + encodeURIComponent(token);
+  // Prefer the branded confirm page on our own domain (no Google warning). Set
+  // CONFIRM_PAGE_URL in Script Properties to e.g.
+  // https://harunteper.github.io/plattenplausch/confirm.html
+  // Fall back to the Apps Script /exec click-through page if it's not set.
+  var confirmBase = PropertiesService.getScriptProperties().getProperty('CONFIRM_PAGE_URL') || '';
+  var url = confirmBase
+    ? confirmBase + '?token=' + encodeURIComponent(token)
+    : ScriptApp.getService().getUrl() + '?token=' + encodeURIComponent(token);
   var label = roundLabel_(round);
   var subject = 'Plattenplausch: Bestätige dein ' + label + '-Team';
   var html =

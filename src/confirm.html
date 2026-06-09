@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#ff5a1f" />
+    <meta name="robots" content="noindex" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>Plattenplausch — Team bestätigen</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;700;800&family=Sora:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body x-data="confirm" x-cloak>
+    <header class="topbar">
+      <a class="brand" href="index.html">
+        <span class="dot"></span>
+        <span>
+          <b>Plattenplausch</b><br />
+          <span>TT Fantasy League</span>
+        </span>
+      </a>
+      <nav class="nav">
+        <a href="index.html">Team aufstellen</a>
+        <a href="ranking.html">Tabelle</a>
+      </nav>
+    </header>
+
+    <main class="wrap" style="max-width: 620px">
+      <section class="panel" style="margin-top: 28px">
+        <div class="body">
+          <!-- Loading -->
+          <template x-if="state === 'loading'">
+            <div>
+              <h2 style="font-family: var(--display); text-transform: uppercase">Einen Moment…</h2>
+              <div class="skeleton"></div>
+              <div class="skeleton"></div>
+            </div>
+          </template>
+
+          <!-- Ready: show roster + confirm button -->
+          <template x-if="state === 'ready' || state === 'confirming'">
+            <div>
+              <div class="round-banner" style="margin-top: 0">
+                <span class="round-pill" x-text="roundLabel"></span>
+                <span>Prüfe deine Aufstellung und fixiere dein Team.</span>
+              </div>
+              <h1 style="font-family: var(--display); text-transform: uppercase; font-size: 2rem; margin: 14px 0 4px">
+                Dein Team <span style="color: var(--orange)">bestätigen</span>
+              </h1>
+              <p style="font-family: var(--display); font-size: 1.6rem; color: var(--ink)" x-text="teamName"></p>
+
+              <template x-for="p in players" :key="p.id">
+                <div class="player" style="margin-top: 8px">
+                  <span class="pos" x-text="p.position"></span>
+                  <span class="meta">
+                    <b x-text="p.name"></b>
+                    <small x-text="p.club"></small>
+                  </span>
+                  <span class="price" x-text="p.price"></span>
+                  <span></span>
+                </div>
+              </template>
+
+              <div class="meter" style="margin-top: 16px">
+                <div class="row">
+                  <span class="label">Budget genutzt</span>
+                  <span class="label" x-text="spent + ' / ' + BUDGET + ' Pkt'"></span>
+                </div>
+                <div class="track"><div class="fill" :style="`width:${spentPct}%`"></div></div>
+              </div>
+
+              <button class="btn block" style="margin-top: 18px" :disabled="state === 'confirming'" @click="doConfirm()">
+                <span x-show="state !== 'confirming'">🏓 Mein Team fixieren</span>
+                <span x-show="state === 'confirming'">Wird bestätigt…</span>
+              </button>
+              <p class="note">
+                Erst mit dem Klick wird dein Team fixiert — automatisch passiert nichts. Danach ist
+                dieses Rundenteam für die Saison gesperrt.
+              </p>
+            </div>
+          </template>
+
+          <!-- Done -->
+          <template x-if="state === 'done'">
+            <div style="text-align: center; padding: 10px 0 6px">
+              <div style="font-size: 3.4rem">🏓</div>
+              <span class="round-pill" x-text="roundLabel"></span>
+              <h1 style="font-family: var(--display); text-transform: uppercase; font-size: 2.2rem; margin: 10px 0">
+                Team <span style="color: var(--orange)">bestätigt!</span>
+              </h1>
+              <p>
+                Dein <span x-text="roundLabel"></span>-Team
+                <b style="color: var(--ink)" x-text="teamName"></b> ist jetzt für die Saison
+                fixiert. Viel Erfolg! 🔥
+              </p>
+              <a class="btn" href="ranking.html" style="margin-top: 14px; display: inline-block">Zur Tabelle →</a>
+            </div>
+          </template>
+
+          <!-- Already confirmed -->
+          <template x-if="state === 'already'">
+            <div style="text-align: center; padding: 10px 0 6px">
+              <div style="font-size: 3.4rem">✔</div>
+              <h1 style="font-family: var(--display); text-transform: uppercase; font-size: 2.2rem; margin: 10px 0">
+                Schon <span style="color: var(--orange)">bestätigt</span>
+              </h1>
+              <p>
+                Dein Team <b style="color: var(--ink)" x-text="teamName"></b> war bereits fixiert.
+                Alles gut!
+              </p>
+              <a class="btn" href="ranking.html" style="margin-top: 14px; display: inline-block">Zur Tabelle →</a>
+            </div>
+          </template>
+
+          <!-- Error -->
+          <template x-if="state === 'error'">
+            <div>
+              <h1 style="font-family: var(--display); text-transform: uppercase; font-size: 2rem">
+                Hoppla
+              </h1>
+              <div class="alert bad" x-text="error"></div>
+              <a class="btn ghost" href="index.html" style="margin-top: 14px; display: inline-block">← Team aufstellen</a>
+            </div>
+          </template>
+        </div>
+      </section>
+
+      <footer class="foot">
+        Plattenplausch · Fan-Projekt der Podcast-Community
+      </footer>
+    </main>
+
+    <script type="module" src="/main.js"></script>
+  </body>
+</html>
