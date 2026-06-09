@@ -1,9 +1,11 @@
 import { RANKING_URL } from './config.js'
 
-// Alpine component for the standings page. Fetches the Google Sheet gviz/tq JSON
-// (fresher than publish-to-web CSV), parses it, and renders rank/teamName/total.
-// Never displays email. Degrades gracefully: the service worker caches the last
-// successful gviz response (StaleWhileRevalidate), so an outage shows stale data.
+// Alpine component for the standings page. Fetches the published-to-web CSV of
+// the Ranking_Gesamt tab (keeps the spreadsheet itself private — only that one
+// tab is exposed, and it contains no email), parses it, and renders
+// rank/teamName/total. Never displays email. Degrades gracefully: the service
+// worker caches the last successful response, so an outage shows stale data.
+// Note: publish-to-web caches for ~5 min, so standings lag a few minutes.
 export function ranking() {
   return {
     rows: [],
@@ -28,7 +30,7 @@ export function ranking() {
       try {
         const res = await fetch(RANKING_URL, { headers: { 'Cache-Control': 'no-cache' } })
         const text = await res.text()
-        this.rows = this._parseGviz(text)
+        this.rows = this._parseCsv(text)
         this.updated = new Date()
       } catch (err) {
         // Network unreachable. If the SW served a cached copy fetch() still
@@ -40,30 +42,52 @@ export function ranking() {
       }
     },
 
-    // gviz/tq wraps JSON in `…(google.visualization.Query.setResponse({...}));`.
-    // Strip the wrapper, parse, map columns by label so column order is robust.
-    _parseGviz(text) {
-      const start = text.indexOf('{')
-      const end = text.lastIndexOf('}')
-      if (start === -1 || end === -1) throw new Error('bad gviz payload')
-      const json = JSON.parse(text.slice(start, end + 1))
-      const cols = (json.table.cols || []).map((c) =>
-        (c.label || c.id || '').toString().trim().toLowerCase()
-      )
-      const idx = (names) => cols.findIndex((c) => names.includes(c))
+    // Parse the published-to-web CSV. Header row maps columns by label so order
+    // is robust. Handles quoted fields (team names may contain commas/quotes).
+    _parseCsv(text) {
+      const rows = this._csvRows(text.trim())
+      if (rows.length < 1) return []
+      const header = rows[0].map((h) => h.trim().toLowerCase())
+      const idx = (names) => header.findIndex((c) => names.includes(c))
       const iRank = idx(['rank', 'rang', 'platz'])
       const iTeam = idx(['teamname', 'team', 'name'])
       const iTotal = idx(['total', 'punkte', 'points', 'gesamt'])
 
-      const cell = (r, i) => (i >= 0 && r.c[i] ? (r.c[i].v ?? r.c[i].f ?? '') : '')
+      return rows
+        .slice(1)
+        .filter((r) => (iTeam >= 0 ? r[iTeam] : r[1]) ) // drop fully-empty rows
+        .map((r, n) => ({
+          rank: iRank >= 0 ? Number(r[iRank]) || n + 1 : n + 1,
+          teamName: String((iTeam >= 0 ? r[iTeam] : r[1]) || '—'),
+          total: Number(iTotal >= 0 ? r[iTotal] : r[2]) || 0,
+        }))
+    },
 
-      const out = (json.table.rows || []).map((r, n) => ({
-        rank: iRank >= 0 ? Number(cell(r, iRank)) || n + 1 : n + 1,
-        teamName: String(cell(r, iTeam) || '—'),
-        total: Number(cell(r, iTotal)) || 0,
-      }))
-      // Never trust source order — sort by total desc as the default presentation.
-      return out
+    // Minimal RFC-4180 CSV splitter: handles "quoted" fields, escaped "" quotes,
+    // and commas/newlines inside quotes. Returns an array of string-arrays.
+    _csvRows(text) {
+      const rows = []
+      let row = []
+      let field = ''
+      let inQuotes = false
+      for (let i = 0; i < text.length; i++) {
+        const ch = text[i]
+        if (inQuotes) {
+          if (ch === '"') {
+            if (text[i + 1] === '"') { field += '"'; i++ }
+            else inQuotes = false
+          } else field += ch
+        } else if (ch === '"') {
+          inQuotes = true
+        } else if (ch === ',') {
+          row.push(field); field = ''
+        } else if (ch === '\n' || ch === '\r') {
+          if (ch === '\r' && text[i + 1] === '\n') i++
+          row.push(field); rows.push(row); row = []; field = ''
+        } else field += ch
+      }
+      if (field !== '' || row.length) { row.push(field); rows.push(row) }
+      return rows
     },
 
     get sortedRows() {

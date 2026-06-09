@@ -6,6 +6,9 @@ import { VitePWA } from 'vite-plugin-pwa'
 // and `vite.config.js` stay at the repo root via the explicit options below.
 export default defineConfig({
   root: 'src',
+  // `.env` lives at the project root, but Vite defaults envDir to `root` (src/).
+  // Point it back to the project root so VITE_* vars load in dev and build.
+  envDir: __dirname,
   publicDir: resolve(__dirname, 'public'),
   // GitLab Pages serves from a project subpath unless a custom domain is used.
   // A custom HTTPS domain (required for the service worker) serves from '/'.
