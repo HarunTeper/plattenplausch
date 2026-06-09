@@ -48,7 +48,8 @@ var TEAM_NAME_MIN = 2;
 // Anti-abuse limits.
 var MAX_PENDING_PER_EMAIL_PER_HOUR = 3; // reject the Nth+ pending submit/hour/email
 var MAIL_CEILING_HOUR = 60; // global confirm-emails/hour ceiling
-var MAIL_CEILING_DAY = 90; // global confirm-emails/day (consumer Gmail ≈ 100/day)
+var MAIL_CEILING_DAY = 60; // global confirm-emails/day (consumer Gmail ≈ 100/day;
+// kept well under quota to limit blast radius if Turnstile is ever defeated)
 var PRUNE_UNCONFIRMED_AFTER_HOURS = 48; // time-trigger prunes older unconfirmed rows
 
 // Simple profanity stoplist (extend as needed). Substring, case-insensitive.
@@ -97,6 +98,13 @@ function doPost(e) {
     var teamName = String(body.teamName || '').trim();
     if (teamName.length < TEAM_NAME_MIN || teamName.length > TEAM_NAME_MAX) {
       return json_({ ok: false, error: 'Teamname muss 2–40 Zeichen lang sein.' });
+    }
+    // CSV/formula-injection guard: a teamName starting with = + - @ (or tab/CR)
+    // becomes a LIVE formula when written to the Sheet / mirrored into the
+    // published Ranking tabs — which could exfiltrate the Submissions email
+    // column via =IMPORTDATA(...) etc. Reject such names outright.
+    if (/^[=+\-@\t\r]/.test(teamName)) {
+      return json_({ ok: false, error: 'Teamname darf nicht mit =, +, - oder @ beginnen.' });
     }
     if (hasProfanity_(teamName)) {
       return json_({ ok: false, error: 'Teamname enthält unzulässige Wörter.' });
@@ -647,7 +655,8 @@ function esc_(s) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;'); // also escape single quotes (defense-in-depth)
 }
 
 function dd_(n) {
