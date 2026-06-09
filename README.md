@@ -55,8 +55,8 @@ The client sends **player IDs only, never prices** — the server looks up price
   (`ROUNDS`) and `apps-script/Code.gs` (`HIN_LOCK`/`RUECK_LOCK`) — keep them in sync.
 - **Identity = email; team name fixed per email.** Once a user confirms a team under a name, the
   other round must reuse that same name (only the roster changes). Mismatched name → rejected.
-- **Scoring:** organizer enters one points value per player per matchday in `Scores`
-  (Hinrunde MD1–MD11, Rückrunde MD12–MD22).
+- **Scoring:** organizer enters one points value per player per matchday in the round's Scores
+  sheet — `Scores_Hin` and `Scores_Rueck`, each numbered `MD1…MD11` (no offset).
 - **Three standings:** **`Ranking_Hin`** (Hin team over Hin matchdays), **`Ranking_Rueck`**
   (Rück team over Rück matchdays), and **`Ranking_Gesamt`** = a user's **Hin + Rück points,
   paired by email** (missing round = 0) — the website default. Only confirmed, non-superseded
@@ -66,7 +66,7 @@ The client sends **player IDs only, never prices** — the server looks up price
 
 ## Google Sheet — the system of record (organizer creates this manually)
 
-This repo ships **`plattenplausch-sheet.xlsx`** — a ready-to-import workbook with all seven tabs,
+This repo ships **`plattenplausch-sheet.xlsx`** — a ready-to-import workbook with all eight tabs,
 the two seeded player pools (**grouped by club**), the Hin/Rück matchday grid, and **all the
 Ranking formulas already wired**. Regenerate with `npm run make:sheet`.
 
@@ -80,7 +80,7 @@ The tabs at a glance:
 | --- | --- |
 | `Submissions` | Written by the backend. Header-only on import (appends land on row 2): `submittedAt, email, teamName, round, p1..p6, token, confirmed, confirmedAt, superseded`. `round` ∈ `HIN`/`RUECK`; `email` normalized; `confirmed`/`superseded` booleans. |
 | `Players_Hin` / `Players_Rueck` | Per-round pools (source of truth for validation + prices): `id, name, club, position, price`. Ids prefixed `h*` / `r*` (distinct — a player may change club per round). Positions `Abwehr`/`Allrounder`/`Offensiv` (match `POSITION_RULES`). Export to `src/players-hin.json` / `src/players-rueck.json` when changed. |
-| `Scores` | `id, name, club, round, MD1..MD22, hinTotal, rueckTotal, playerTotal` (formulas). One row per `h*`/`r*` listing; `h*` rows carry MD1–11, `r*` rows MD12–22. |
+| `Scores_Hin` / `Scores_Rueck` | One Scores sheet per round: `id, name, club, MD1..MD11, total` (`total`=SUM, a formula). Each numbered from MD1 (no offset); lists only that round's players. |
 | `Ranking_Hin` / `Ranking_Rueck` | Per-round `rank, teamName, total` over active teams of that round. |
 | `Ranking_Gesamt` | Combined `rank, teamName, total` — Hin+Rück summed per email, tie-break earliest `submittedAt` then teamName. **Never emits email.** |
 
@@ -104,7 +104,8 @@ The frontend needs the `/exec` URL; the Apps Script needs the Sheet; the deploy 
 Turnstile secret. Do it in this order:
 
 1. **Create the Sheet** — import `plattenplausch-sheet.xlsx` (tabs `Submissions, Players_Hin,
-   Players_Rueck, Scores, Ranking_Gesamt, Ranking_Hin, Ranking_Rueck`). See `docs/SHEET-SETUP.md`.
+   Players_Rueck, Scores_Hin, Scores_Rueck, Ranking_Gesamt, Ranking_Hin, Ranking_Rueck`). See
+   `docs/SHEET-SETUP.md`.
 2. **Fill `Players_Hin` / `Players_Rueck`**, then export → `src/players-hin.json` /
    `src/players-rueck.json` and commit (`npm run export:players` per pool, or edit by hand).
 3. **Register a Cloudflare Turnstile site** → note the **site key** (public) + **secret**.
@@ -140,9 +141,10 @@ Turnstile secret. Do it in this order:
 
 Thereafter:
 - **Backend change:** `clasp push && clasp deploy -i <ID>` (same id).
-- **Roster change:** update `Players`, re-export `players.json`, redeploy the frontend (push).
-- **Weekly:** organizer enters matchday points in `Scores`; the `Ranking` tab and the live
-  table update within a few minutes.
+- **Roster change:** update `Players_Hin`/`Players_Rueck`, re-export the matching
+  `players-*.json`, redeploy the frontend (push).
+- **Weekly:** organizer enters matchday points in `Scores_Hin` / `Scores_Rueck` (each from MD1);
+  the Ranking tabs and the live table update within a few minutes.
 
 ---
 

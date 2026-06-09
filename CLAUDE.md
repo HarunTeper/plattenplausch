@@ -12,8 +12,9 @@ passwords, no sessions.** Each round's team is locked once confirmed.
 ## Stack
 - **Frontend:** Alpine.js + Vite + vite-plugin-pwa. App root is `src/`; build → `dist/`.
 - **Backend:** Google Apps Script Web App (`apps-script/Code.gs`), clasp-managed.
-- **Datastore:** one Google Sheet (tabs `Submissions`, `Players_Hin`, `Players_Rueck`, `Scores`,
-  `Ranking_Gesamt`, `Ranking_Hin`, `Ranking_Rueck`).
+- **Datastore:** one Google Sheet (tabs `Submissions`, `Players_Hin`, `Players_Rueck`,
+  `Scores_Hin`, `Scores_Rueck`, `Ranking_Gesamt`, `Ranking_Hin`, `Ranking_Rueck`). Each Scores
+  sheet is numbered from `MD1` (no offset between rounds).
 - **Deploy:** GitLab Pages (`node:20-alpine` CI). Custom HTTPS domain required for the SW.
 
 ## Golden rules (do not violate)

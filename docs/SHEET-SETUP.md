@@ -1,8 +1,8 @@
 # Google Sheet setup — step by step
 
 This repo ships a ready-to-import workbook: **`plattenplausch-sheet.xlsx`** (regenerate any time
-with `npm run make:sheet`). It contains all seven tabs with the right headers, your seeded
-players (two pools), the `Scores` matchday grid, and **all the Ranking formulas already written**.
+with `npm run make:sheet`). It contains all eight tabs with the right headers, your seeded
+players (two pools), the per-round Scores grids, and **all the Ranking formulas already written**.
 You mostly just import it and fill in points.
 
 **The season is two independent drafts** (Hinrunde + Rückrunde), each a fresh 100-point team.
@@ -20,7 +20,7 @@ their email**.
 2. **File → Import → Upload** → drop `plattenplausch-sheet.xlsx`.
 3. In the import dialog choose **"Replace spreadsheet"** (cleanest — gives you exactly these
    tabs). Click **Import data**.
-4. You now have seven tabs: **Submissions, Players_Hin, Players_Rueck, Scores, Ranking_Gesamt,
+4. You now have eight tabs: **Submissions, Players_Hin, Players_Rueck, Scores_Hin, Scores_Rueck, Ranking_Gesamt,
    Ranking_Hin, Ranking_Rueck**.
 5. Rename the spreadsheet to e.g. *"Plattenplausch — Liga 26/27"*.
 
@@ -42,16 +42,16 @@ player may change club between rounds. **Ids are prefixed per round: `h001…` i
   the website shows the same pools — edit by hand or run the export (see README) and commit.
 - `id` values must be unique across BOTH pools and stable (submissions + Scores reference them).
 
-### `Scores` — weekly points you enter (the game engine)
-Columns: `id | name | club | round | MD1 … MD11 | MD12 … MD22 | hinTotal | rueckTotal | playerTotal`.
-**One row per listing** across both pools: the `h*` rows (round=HIN) carry MD1–MD11, the `r*` rows
-(round=RUECK) carry MD12–MD22. The off-round matchday cells just stay 0.
-- Already seeded (Hin listings first, then Rück, each grouped by club, all matchdays = `0`).
-- **After each matchday, type each listing's points into that matchday's column.** For a Hinrunde
-  matchday fill the `h*` rows' `MD1…MD11`; for a Rückrunde matchday fill the `r*` rows' `MD12…MD22`.
-- `hinTotal`/`rueckTotal`/`playerTotal` are formulas — **don't edit them.**
-- Different round split or matchday count? Change `HIN_MATCHDAYS` / `MATCHDAYS` in
-  `scripts/make-sheet.mjs` and regenerate (`npm run make:sheet`).
+### `Scores_Hin` / `Scores_Rueck` — weekly points you enter (the game engine)
+**One Scores sheet per round, each numbered from `MD1`** (no MD12 offset). Columns:
+`id | name | club | MD1 … MD11 | total`. `Scores_Hin` lists only the `h*` players, `Scores_Rueck`
+only the `r*` players (grouped by club).
+- **Each matchday, open that round's sheet and type the points into `MD1`, `MD2`, …** — Hinrunde
+  matchday 1 goes in `Scores_Hin!MD1`, Rückrunde matchday 1 in `Scores_Rueck!MD1`. No mental
+  offset.
+- `total` (`=SUM(MD1:MD11)`) is a formula — **don't edit it.**
+- Different matchday count? Change `HIN_MATCHDAYS` / `RUECK_MATCHDAYS` in
+  `scripts/make-sheet.mjs` and regenerate (`npm run make:sheet`). The two rounds can differ.
 
 ### `Submissions` — written by the backend (you don't type here)
 Columns: `submittedAt | email | teamName | round | p1..p6 | token | confirmed | confirmedAt |
@@ -64,14 +64,14 @@ superseded` (14 columns, A–N; `round` ∈ `HIN`/`RUECK`). **Header row only** 
 Visible `rank | teamName | total` (A–C); helper cols `active | teamTotal | submittedAt |
 teamNameSrc` (E–H) are whole-column array formulas over `Submissions`:
 - `active` (E) = confirmed + non-superseded + non-blank **AND `round` matches this tab**.
-- `teamTotal` (F) = sum of that row's 6 picks' round-total via `XLOOKUP` into `Scores`
-  (`Ranking_Hin` → `hinTotal`; `Ranking_Rueck` → `rueckTotal`).
+- `teamTotal` (F) = sum of that row's 6 picks' `total` via `XLOOKUP` into the round's Scores sheet
+  (`Ranking_Hin` → `Scores_Hin`; `Ranking_Rueck` → `Scores_Rueck`).
 - `B2`/`C2` `FILTER` active rows and `SORT` by total desc → submittedAt asc → teamName asc.
 
 ### `Ranking_Gesamt` — combined standings (read by the website)
 Gesamt = a user's **Hin points + Rück points, paired by their email** (a missing round counts 0).
 Visible `rank | teamName | total` (A–C). Helper cols (hide them):
-- E–I (per Submissions row): `active`, `email`, `rowTotal` (Hin row→hinTotal, Rück row→rueckTotal),
+- E–I (per Submissions row): `active`, `email`, `rowTotal` (Hin row→Scores_Hin, Rück row→Scores_Rueck),
   `teamNameSrc`, `submittedAt`.
 - K–N (per distinct email): `uEmail` (`UNIQUE`), `uTotal` (`SUMIF` of rowTotal), `uName`
   (the email's fixed team name), `uEarliest` (`MINIFS` submittedAt — the tie-break).
@@ -119,8 +119,9 @@ deploy the Web App, record the deployment id + `/exec` URL).
 
 ## 5. Quick sanity test (no website needed)
 
-1. In `Scores`, set a few `h*` rows' `MD1` and a few `r*` rows' `MD12` to non-zero numbers. Watch
-   `hinTotal` / `rueckTotal` / `playerTotal` update.
+1. In `Scores_Hin`, set the `h020` row's `MD1` = `10`; in `Scores_Rueck`, set the `r020` row's
+   `MD1` = `7`. Watch each sheet's `total` update (find the row via the `id` column — both are
+   grouped by club, so use Ctrl+F for `h020` / `r020`).
 2. In `Submissions` row 2 + row 3, type two fake confirmed rows for the SAME email to test the
    Gesamt email-join (columns: A submittedAt, B email, C teamName, **D round**, E–J p1–p6,
    L confirmed, N superseded):

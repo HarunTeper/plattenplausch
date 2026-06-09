@@ -13,10 +13,11 @@ import { deflateRawSync } from 'node:zlib'
 
 const ROSTER_SIZE = 6
 
-// Two independent drafts. Hinrunde = MD1..HIN_MATCHDAYS, Rückrunde = the rest up
-// to MATCHDAYS. Each round has its own player pool (distinct h*/r* ids).
+// Two independent drafts. Each round has its OWN Scores sheet, each numbered
+// MD1..MD_ROUND from 1 (no continued 12..22 offset), its own player pool
+// (distinct h*/r* ids), and its own player count.
 const HIN_MATCHDAYS = 11 // matchdays in the Hinrunde
-const MATCHDAYS = 22 // total matchdays (Hin + Rück)
+const RUECK_MATCHDAYS = 11 // matchdays in the Rückrunde
 
 const byClub = (a, b) => a.club.localeCompare(b.club, 'de') || a.name.localeCompare(b.name, 'de')
 const playersHin = JSON.parse(
@@ -25,11 +26,6 @@ const playersHin = JSON.parse(
 const playersRueck = JSON.parse(
   readFileSync(new URL('../src/players-rueck.json', import.meta.url))
 ).sort(byClub)
-
-// Scores has ONE row per listing across BOTH pools (ids never overlap): an
-// h-listing scores MD1..MD11, an r-listing scores MD12..MD22; the off-round
-// matchday cells stay 0. Hin listings first, then Rück, each grouped by club.
-const scoresPlayers = [...playersHin, ...playersRueck]
 
 // ----- minimal XLSX writer (inline strings + formulas, no shared strings) -----
 const COLS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
@@ -84,39 +80,40 @@ function playersTab(pool) {
 const playersHinRows = playersTab(playersHin)
 const playersRueckRows = playersTab(playersRueck)
 
-// ----------------------------- Scores -------------------------------------
-// id | name | club | round | MD1..MDn | hinTotal | rueckTotal | playerTotal
-// hinTotal   = SUM(MD1..MD<HIN_MATCHDAYS>)   (only meaningful for h* listings)
-// rueckTotal = SUM(MD<HIN+1>..MD<MATCHDAYS>) (only meaningful for r* listings)
-// playerTotal= hinTotal + rueckTotal
-const scoresHeader = [S('id'), S('name'), S('club'), S('round')]
-for (let m = 1; m <= MATCHDAYS; m++) scoresHeader.push(S('MD' + m))
-scoresHeader.push(S('hinTotal'), S('rueckTotal'), S('playerTotal'))
+// ----------------------------- Scores_Hin / Scores_Rueck -------------------
+// One Scores sheet PER ROUND, each numbered from MD1 (no offset). Layout:
+//   id | name | club | MD1..MD<n> | total      total = SUM(MD1:MD<n>)
+// Each round's sheet only lists that round's players (h* in Hin, r* in Rück),
+// grouped by club. Organizer types MD1, MD2, … from 1 for that round.
+const FIXED = 3 // id, name, club
+function scoresTab(pool, matchdays) {
+  const header = [S('id'), S('name'), S('club')]
+  for (let m = 1; m <= matchdays; m++) header.push(S('MD' + m))
+  header.push(S('total'))
+  const firstMd = colName(FIXED + 1) // D
+  const lastMd = colName(FIXED + matchdays)
+  const rows = [header]
+  pool.forEach((p, i) => {
+    const r = i + 2
+    const row = [S(p.id), S(p.name), S(p.club)]
+    for (let m = 1; m <= matchdays; m++) row.push(N(0)) // seed matchdays = 0
+    row.push(F(`SUM(${firstMd}${r}:${lastMd}${r})`)) // total
+    rows.push(row)
+  })
+  return { rows, totalColIdx: FIXED + matchdays + 1, lastRow: pool.length + 1 }
+}
+const scoresHin = scoresTab(playersHin, HIN_MATCHDAYS)
+const scoresRueck = scoresTab(playersRueck, RUECK_MATCHDAYS)
 
-const FIXED = 4 // id,name,club,round
-const firstMdCol = colName(FIXED + 1) // E
-const hinLastCol = colName(FIXED + HIN_MATCHDAYS)
-const rueckFirstCol = colName(FIXED + HIN_MATCHDAYS + 1)
-const lastMdCol = colName(FIXED + MATCHDAYS)
-const hinTotalIdx = FIXED + MATCHDAYS + 1
-const rueckTotalIdx = FIXED + MATCHDAYS + 2
-const totalColIdx = FIXED + MATCHDAYS + 3
-const hinTotalCol = colName(hinTotalIdx)
-const rueckTotalCol = colName(rueckTotalIdx)
-const playerTotalCol = colName(totalColIdx)
-const scoresLastRow = scoresPlayers.length + 1
-
-const scoresRows = [scoresHeader]
-scoresPlayers.forEach((p, i) => {
-  const r = i + 2 // sheet row (1=header)
-  const round = String(p.id).charAt(0) === 'r' ? 'RUECK' : 'HIN'
-  const row = [S(p.id), S(p.name), S(p.club), S(round)]
-  for (let m = 1; m <= MATCHDAYS; m++) row.push(N(0)) // seed all matchdays = 0
-  row.push(F(`SUM(${firstMdCol}${r}:${hinLastCol}${r})`)) // hinTotal
-  row.push(F(`SUM(${rueckFirstCol}${r}:${lastMdCol}${r})`)) // rueckTotal
-  row.push(F(`${hinTotalCol}${r}+${rueckTotalCol}${r}`)) // playerTotal
-  scoresRows.push(row)
-})
+// Lookup helpers: id column + total column per round's Scores sheet.
+const hinScoreId = `Scores_Hin!$A$2:$A$${scoresHin.lastRow}`
+const hinScoreTotal = `Scores_Hin!$${colName(scoresHin.totalColIdx)}$2:$${colName(
+  scoresHin.totalColIdx
+)}$${scoresHin.lastRow}`
+const rueckScoreId = `Scores_Rueck!$A$2:$A$${scoresRueck.lastRow}`
+const rueckScoreTotal = `Scores_Rueck!$${colName(scoresRueck.totalColIdx)}$2:$${colName(
+  scoresRueck.totalColIdx
+)}$${scoresRueck.lastRow}`
 
 // ----------------------------- Submissions --------------------------------
 // HEADER ONLY. The Apps Script uses appendRow(), which lands on the first fully
@@ -139,8 +136,6 @@ const colPN = colName(4 + ROSTER_SIZE) // J (for roster 6)
 // After p1..pN come: token, confirmed, confirmedAt, superseded.
 const colConfirmed = colName(4 + ROSTER_SIZE + 2) // L — confirmed
 const colSuperseded = colName(4 + ROSTER_SIZE + 4) // N — superseded
-const scoreId = `Scores!$A$2:$A$${scoresLastRow}`
-const scoreRange = (col) => `Scores!$${col}$2:$${col}$${scoresLastRow}`
 
 // ----------------------------- Ranking tabs --------------------------------
 // IMPORTANT: MAP/BYROW need EQUAL-LENGTH inputs and choke on open-ended column
@@ -162,8 +157,7 @@ const subPicks = `Submissions!$${colP1}$2:$${colPN}$${LAST}` // bounded picks bl
 // One row per active team in THAT round. active = confirmed AND not superseded
 // AND teamName non-blank AND round matches. teamTotal = sum of the 6 picks
 // XLOOKUP'd into the round's Scores total column. Helper cols E:H (hideable).
-function buildRoundRankingRows(roundKey, scoreTotalCol) {
-  const scoreTotal = scoreRange(scoreTotalCol)
+function buildRoundRankingRows(roundKey, scoreIdRange, scoreTotalRange) {
   // Bounded local helper-column ranges (same length as the Submissions ranges).
   const E = `$E$2:$E$${LAST}`
   const F_ = `$F$2:$F$${LAST}`
@@ -174,10 +168,11 @@ function buildRoundRankingRows(roundKey, scoreTotalCol) {
   const activeArr =
     `MAP(${subTeamRange},${subConfirmed},${subSuperseded},${subRoundRange},` +
     `LAMBDA(tn,cf,ss,rd,IF(tn="",FALSE,IF(AND(cf=TRUE,ss<>TRUE,rd="${roundKey}"),TRUE,FALSE))))`
-  // F: team total per row — BYROW over the bounded picks block.
+  // F: team total per row — BYROW over the bounded picks block, XLOOKUP'd into
+  //    THIS round's Scores sheet.
   const totalArr =
     `BYROW(${subPicks},LAMBDA(row,` +
-    `IF(INDEX(row,1,1)="",0,SUMPRODUCT(IFERROR(XLOOKUP(row,${scoreId},${scoreTotal}),0)))))`
+    `IF(INDEX(row,1,1)="",0,SUMPRODUCT(IFERROR(XLOOKUP(row,${scoreIdRange},${scoreTotalRange}),0)))))`
   // G: submittedAt mirror; H: teamName mirror.
   const submittedArr = `ARRAYFORMULA(IF(${subTeamRange}="","",${subSubmitted}))`
   const teamArr = `ARRAYFORMULA(IF(${subTeamRange}="","",${subTeamRange}))`
@@ -210,8 +205,6 @@ function buildRoundRankingRows(roundKey, scoreTotalCol) {
 //   K uEmail | L uTotal | M uName | N uEarliest                       (per-email aggregate)
 // Email is used only for the in-sheet join — never emitted to A:C.
 function buildGesamtRankingRows() {
-  const hinTotal = scoreRange(hinTotalCol)
-  const rueckTotal = scoreRange(rueckTotalCol)
   // Bounded local helper-column ranges.
   const E = `$E$2:$E$${LAST}`
   const F_ = `$F$2:$F$${LAST}`
@@ -232,9 +225,9 @@ function buildGesamtRankingRows() {
   // G: each active row's round-appropriate team total — combine two bounded
   //    BYROW pick-sums (hin / rück) via the row's round. No INDEX-by-i.
   const hinSums =
-    `BYROW(${subPicks},LAMBDA(row,IF(INDEX(row,1,1)="",0,SUMPRODUCT(IFERROR(XLOOKUP(row,${scoreId},${hinTotal}),0)))))`
+    `BYROW(${subPicks},LAMBDA(row,IF(INDEX(row,1,1)="",0,SUMPRODUCT(IFERROR(XLOOKUP(row,${hinScoreId},${hinScoreTotal}),0)))))`
   const rueckSums =
-    `BYROW(${subPicks},LAMBDA(row,IF(INDEX(row,1,1)="",0,SUMPRODUCT(IFERROR(XLOOKUP(row,${scoreId},${rueckTotal}),0)))))`
+    `BYROW(${subPicks},LAMBDA(row,IF(INDEX(row,1,1)="",0,SUMPRODUCT(IFERROR(XLOOKUP(row,${rueckScoreId},${rueckScoreTotal}),0)))))`
   const rowTotal =
     `ARRAYFORMULA(IF(${E}<>TRUE,"",IF(${subRoundRange}="HIN",${hinSums},IF(${subRoundRange}="RUECK",${rueckSums},0))))`
   // H: teamName of active rows; I: submittedAt of active rows.
@@ -275,8 +268,8 @@ function buildGesamtRankingRows() {
   ]
 }
 
-const rankHinRows = buildRoundRankingRows('HIN', hinTotalCol)
-const rankRueckRows = buildRoundRankingRows('RUECK', rueckTotalCol)
+const rankHinRows = buildRoundRankingRows('HIN', hinScoreId, hinScoreTotal)
+const rankRueckRows = buildRoundRankingRows('RUECK', rueckScoreId, rueckScoreTotal)
 const rankGesamtRows = buildGesamtRankingRows()
 
 // ----------------------------- assemble xlsx -------------------------------
@@ -284,7 +277,8 @@ const sheets = [
   { name: 'Submissions', xml: sheetXml(subRows) },
   { name: 'Players_Hin', xml: sheetXml(playersHinRows) },
   { name: 'Players_Rueck', xml: sheetXml(playersRueckRows) },
-  { name: 'Scores', xml: sheetXml(scoresRows) },
+  { name: 'Scores_Hin', xml: sheetXml(scoresHin.rows) },
+  { name: 'Scores_Rueck', xml: sheetXml(scoresRueck.rows) },
   { name: 'Ranking_Gesamt', xml: sheetXml(rankGesamtRows) },
   { name: 'Ranking_Hin', xml: sheetXml(rankHinRows) },
   { name: 'Ranking_Rueck', xml: sheetXml(rankRueckRows) },
@@ -403,9 +397,9 @@ const out = new URL('../plattenplausch-sheet.xlsx', import.meta.url)
 writeFileSync(out, zip)
 console.log(`Wrote plattenplausch-sheet.xlsx (${zip.length} bytes)`)
 console.log(
-  `  Players_Hin: ${playersHin.length} | Players_Rueck: ${playersRueck.length} | Scores rows: ${scoresPlayers.length}`
+  `  Players_Hin: ${playersHin.length} | Players_Rueck: ${playersRueck.length}`
 )
 console.log(
-  `  Scores split: MD1..MD${HIN_MATCHDAYS} Hin + MD${HIN_MATCHDAYS + 1}..MD${MATCHDAYS} Rück`
+  `  Scores_Hin: ${playersHin.length} rows, MD1..MD${HIN_MATCHDAYS} | Scores_Rueck: ${playersRueck.length} rows, MD1..MD${RUECK_MATCHDAYS}`
 )
 console.log('  Rankings: Ranking_Gesamt (email-join, website reads this), Ranking_Hin, Ranking_Rueck')
