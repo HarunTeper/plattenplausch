@@ -214,27 +214,32 @@ function buildRoundRankingRows(roundKey, scoreIdRange, scoreTotalRange) {
 //   sorted= SORT {uName,uTot,uEarl} by total desc, earliest asc, name asc
 // B2 outputs column 1 (name); C2 outputs column 2 (total).
 function buildGesamtRankingRows() {
-  const hinSums =
-    `BYROW(${subPicks},LAMBDA(row,IF(INDEX(row,1,1)="",0,SUMPRODUCT(IFERROR(XLOOKUP(row,${hinScoreId},${hinScoreTotal}),0)))))`
-  const rueckSums =
-    `BYROW(${subPicks},LAMBDA(row,IF(INDEX(row,1,1)="",0,SUMPRODUCT(IFERROR(XLOOKUP(row,${rueckScoreId},${rueckScoreTotal}),0)))))`
 
   // Shared LET preamble computing the sorted aggregate. `outCol` picks which
   // column of the sorted result this cell emits (1=teamName, 2=total).
+  // CRITICAL: inside LET, a bare `IF(actArray=TRUE, rangeA, rangeB)` does NOT
+  // gate element-wise — Sheets evaluates the condition as a single truthy test
+  // and returns the WHOLE rangeA, pulling in unconfirmed rows. So every per-row
+  // value is built with MAP (which IS element-wise), gating each row by its own
+  // confirmed/superseded/teamName. `pickTotalFor(rd, idx)` sums a row's 6 picks
+  // against the round's Scores sheet.
+  const pickRow = `INDEX(${subPicks},i,0)`
+  const hinRowSum = `SUMPRODUCT(IFERROR(XLOOKUP(${pickRow},${hinScoreId},${hinScoreTotal}),0))`
+  const rueckRowSum = `SUMPRODUCT(IFERROR(XLOOKUP(${pickRow},${rueckScoreId},${rueckScoreTotal}),0))`
   const sortedLet = (outCol) =>
     `IFERROR(LET(` +
-    // act mirrors the per-round builder EXACTLY: explicit TRUE/FALSE, and every
-    // consumer compares act=TRUE (strict) so a non-FALSE value can't read truthy.
-    `act,MAP(${subTeamRange},${subConfirmed},${subSuperseded},LAMBDA(tn,cf,ss,IF(tn="",FALSE,IF(AND(cf=TRUE,ss<>TRUE),TRUE,FALSE)))),` +
-    `eml,IF(act=TRUE,${subEmailRange},""),` +
-    // tot: a NUMBER for active rows, 0 otherwise (never "" — keeps the array
-    // numeric so the SUMPRODUCT aggregation below is reliable).
-    `tot,IF(act=TRUE,IF(${subRoundRange}="HIN",${hinSums},IF(${subRoundRange}="RUECK",${rueckSums},0)),0),` +
-    `nm,IF(act=TRUE,${subTeamRange},""),` +
-    `sub,IF(act=TRUE,${subSubmitted},""),` +
+    `n,ROWS(${subTeamRange}),` +
+    `idx,SEQUENCE(n),` +
+    // eml: this row's email IF active, else "" — computed per row via MAP.
+    `eml,MAP(${subTeamRange},${subConfirmed},${subSuperseded},${subEmailRange},` +
+    `LAMBDA(tn,cf,ss,em,IF(AND(tn<>"",cf=TRUE,ss<>TRUE),em,""))),` +
+    // tot: this row's round-appropriate team total IF active, else 0.
+    `tot,MAP(${subTeamRange},${subConfirmed},${subSuperseded},${subRoundRange},idx,` +
+    `LAMBDA(tn,cf,ss,rd,i,IF(AND(tn<>"",cf=TRUE,ss<>TRUE),IF(rd="HIN",${hinRowSum},IF(rd="RUECK",${rueckRowSum},0)),0))),` +
+    // nm / sub mirrors gated the same way.
+    `nm,MAP(${subTeamRange},${subConfirmed},${subSuperseded},LAMBDA(tn,cf,ss,IF(AND(tn<>"",cf=TRUE,ss<>TRUE),tn,""))),` +
+    `sub,MAP(${subTeamRange},${subConfirmed},${subSuperseded},${subSubmitted},LAMBDA(tn,cf,ss,sb,IF(AND(tn<>"",cf=TRUE,ss<>TRUE),sb,""))),` +
     `ue,UNIQUE(FILTER(eml,eml<>"")),` +
-    // SUMIF's sum_range is unreliable on an in-memory array → use SUMPRODUCT,
-    // which is array-native. (ISNUMBER guard is belt-and-suspenders.)
     `uTot,MAP(ue,LAMBDA(e,SUMPRODUCT((eml=e)*IF(ISNUMBER(tot),tot,0)))),` +
     `uName,MAP(ue,LAMBDA(e,INDEX(FILTER(nm,eml=e),1))),` +
     `uEarl,MAP(ue,LAMBDA(e,MINIFS(sub,eml,e))),` +
