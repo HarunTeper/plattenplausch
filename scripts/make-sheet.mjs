@@ -143,14 +143,20 @@ const scoreId = `Scores!$A$2:$A$${scoresLastRow}`
 const scoreRange = (col) => `Scores!$${col}$2:$${col}$${scoresLastRow}`
 
 // ----------------------------- Ranking tabs --------------------------------
-// Shared Submissions ranges.
-const subEmailRange = `Submissions!$${colEmail}$2:$${colEmail}`
-const subTeamRange = `Submissions!$${colTeamName}$2:$${colTeamName}`
-const subRoundRange = `Submissions!$${colRound}$2:$${colRound}`
-const subConfirmed = `Submissions!$${colConfirmed}$2:$${colConfirmed}`
-const subSuperseded = `Submissions!$${colSuperseded}$2:$${colSuperseded}`
-const subSubmitted = `Submissions!$${colSubmittedAt}$2:$${colSubmittedAt}`
-const subPicks = `Submissions!$${colP1}$2:$${colPN}`
+// IMPORTANT: MAP/BYROW need EQUAL-LENGTH inputs and choke on open-ended column
+// ranges (`$C$2:$C`). So every Submissions range is BOUNDED to the same fixed
+// row count (rows 2..MAXSUB+1). MAXSUB is the max submissions the season can
+// hold; bump it if you ever exceed it.
+const MAXSUB = 1000
+const LAST = MAXSUB + 1 // last sheet row referenced (1 = header)
+const bsub = (col) => `Submissions!$${col}$2:$${col}$${LAST}` // bounded single col
+const subEmailRange = bsub(colEmail)
+const subTeamRange = bsub(colTeamName)
+const subRoundRange = bsub(colRound)
+const subConfirmed = bsub(colConfirmed)
+const subSuperseded = bsub(colSuperseded)
+const subSubmitted = bsub(colSubmittedAt)
+const subPicks = `Submissions!$${colP1}$2:$${colPN}$${LAST}` // bounded picks block
 
 // --- Per-round tables (Ranking_Hin / Ranking_Rueck) ---
 // One row per active team in THAT round. active = confirmed AND not superseded
@@ -158,12 +164,21 @@ const subPicks = `Submissions!$${colP1}$2:$${colPN}`
 // XLOOKUP'd into the round's Scores total column. Helper cols E:H (hideable).
 function buildRoundRankingRows(roundKey, scoreTotalCol) {
   const scoreTotal = scoreRange(scoreTotalCol)
+  // Bounded local helper-column ranges (same length as the Submissions ranges).
+  const E = `$E$2:$E$${LAST}`
+  const F_ = `$F$2:$F$${LAST}`
+  const G = `$G$2:$G$${LAST}`
+  const H = `$H$2:$H$${LAST}`
+
+  // E: active in THIS round. All MAP inputs are bounded → equal length.
   const activeArr =
     `MAP(${subTeamRange},${subConfirmed},${subSuperseded},${subRoundRange},` +
-    `LAMBDA(tn,cf,ss,rd,IF(tn="","",IF(AND(cf=TRUE,ss<>TRUE,rd="${roundKey}"),TRUE,FALSE))))`
+    `LAMBDA(tn,cf,ss,rd,IF(tn="",FALSE,IF(AND(cf=TRUE,ss<>TRUE,rd="${roundKey}"),TRUE,FALSE))))`
+  // F: team total per row — BYROW over the bounded picks block.
   const totalArr =
     `BYROW(${subPicks},LAMBDA(row,` +
-    `IF(INDEX(row,1,1)="","",SUMPRODUCT(IFERROR(XLOOKUP(row,${scoreId},${scoreTotal}),0)))))`
+    `IF(INDEX(row,1,1)="",0,SUMPRODUCT(IFERROR(XLOOKUP(row,${scoreId},${scoreTotal}),0)))))`
+  // G: submittedAt mirror; H: teamName mirror.
   const submittedArr = `ARRAYFORMULA(IF(${subTeamRange}="","",${subSubmitted}))`
   const teamArr = `ARRAYFORMULA(IF(${subTeamRange}="","",${subTeamRange}))`
 
@@ -171,8 +186,8 @@ function buildRoundRankingRows(roundKey, scoreTotalCol) {
     [S('rank'), S('teamName'), S('total'), S(''), S('active'), S('teamTotal'), S('submittedAt'), S('teamNameSrc')],
     [
       F('IF(COUNTA(B2:B)=0,"",SEQUENCE(COUNTA(B2:B)))'),
-      F(`IFERROR(INDEX(SORT(FILTER({$H$2:$H,$F$2:$F,$G$2:$G},$E$2:$E=TRUE),2,FALSE,3,TRUE,1,TRUE),0,1),"")`),
-      F(`IFERROR(INDEX(SORT(FILTER({$H$2:$H,$F$2:$F,$G$2:$G},$E$2:$E=TRUE),2,FALSE,3,TRUE,1,TRUE),0,2),"")`),
+      F(`IFERROR(INDEX(SORT(FILTER({${H},${F_},${G}},${E}=TRUE),2,FALSE,3,TRUE,1,TRUE),0,1),"")`),
+      F(`IFERROR(INDEX(SORT(FILTER({${H},${F_},${G}},${E}=TRUE),2,FALSE,3,TRUE,1,TRUE),0,2),"")`),
       S(''),
       F(activeArr),
       F(totalArr),
@@ -197,33 +212,41 @@ function buildRoundRankingRows(roundKey, scoreTotalCol) {
 function buildGesamtRankingRows() {
   const hinTotal = scoreRange(hinTotalCol)
   const rueckTotal = scoreRange(rueckTotalCol)
-  const nRows = `ROWS(${subRoundRange})`
+  // Bounded local helper-column ranges.
+  const E = `$E$2:$E$${LAST}`
+  const F_ = `$F$2:$F$${LAST}`
+  const G = `$G$2:$G$${LAST}`
+  const H = `$H$2:$H$${LAST}`
+  const I = `$I$2:$I$${LAST}`
+  const K = `$K$2:$K$${LAST}`
+  const L = `$L$2:$L$${LAST}`
+  const M = `$M$2:$M$${LAST}`
+  const N = `$N$2:$N$${LAST}`
 
-  // E: active (any round). Blank string for inactive/empty rows.
+  // E: active (any round). MAP inputs all bounded → equal length.
   const activeArr =
     `MAP(${subTeamRange},${subConfirmed},${subSuperseded},` +
-    `LAMBDA(tn,cf,ss,IF(tn="","",IF(AND(cf=TRUE,ss<>TRUE),TRUE,FALSE))))`
+    `LAMBDA(tn,cf,ss,IF(tn="",FALSE,IF(AND(cf=TRUE,ss<>TRUE),TRUE,FALSE))))`
   // F: email of active rows (else "").
-  const emailArr = `ARRAYFORMULA(IF($E$2:$E=TRUE,${subEmailRange},""))`
-  // G: each active row's round-appropriate team total. MAP over (round, picks-row)
-  //    using INDEX to slice each row's 6 pick cells; Hin→hinTotal, Rück→rueckTotal.
+  const emailArr = `ARRAYFORMULA(IF(${E}=TRUE,${subEmailRange},""))`
+  // G: each active row's round-appropriate team total — combine two bounded
+  //    BYROW pick-sums (hin / rück) via the row's round. No INDEX-by-i.
+  const hinSums =
+    `BYROW(${subPicks},LAMBDA(row,IF(INDEX(row,1,1)="",0,SUMPRODUCT(IFERROR(XLOOKUP(row,${scoreId},${hinTotal}),0)))))`
+  const rueckSums =
+    `BYROW(${subPicks},LAMBDA(row,IF(INDEX(row,1,1)="",0,SUMPRODUCT(IFERROR(XLOOKUP(row,${scoreId},${rueckTotal}),0)))))`
   const rowTotal =
-    `MAP(${subRoundRange},SEQUENCE(${nRows}),LAMBDA(rd,i,` +
-    `IF(INDEX($E$2:$E,i)<>TRUE,"",` +
-    `LET(picks,INDEX(${subPicks},i,0),` +
-    `IF(rd="HIN",SUMPRODUCT(IFERROR(XLOOKUP(picks,${scoreId},${hinTotal}),0)),` +
-    `IF(rd="RUECK",SUMPRODUCT(IFERROR(XLOOKUP(picks,${scoreId},${rueckTotal}),0)),0))))))`
+    `ARRAYFORMULA(IF(${E}<>TRUE,"",IF(${subRoundRange}="HIN",${hinSums},IF(${subRoundRange}="RUECK",${rueckSums},0))))`
   // H: teamName of active rows; I: submittedAt of active rows.
-  const teamArr = `ARRAYFORMULA(IF($E$2:$E=TRUE,${subTeamRange},""))`
-  const submittedArr = `ARRAYFORMULA(IF($E$2:$E=TRUE,${subSubmitted},""))`
+  const teamArr = `ARRAYFORMULA(IF(${E}=TRUE,${subTeamRange},""))`
+  const submittedArr = `ARRAYFORMULA(IF(${E}=TRUE,${subSubmitted},""))`
 
-  // K: distinct active emails (spills). L/M/N: aggregates mapped over the K spill
-  // (MAP handles the per-cell blank guard, so no outer wrapper needed).
-  const distinctEmails = `IFERROR(UNIQUE(FILTER($F$2:$F,$F$2:$F<>"")),"")`
-  const sumByEmail = `MAP($K$2:$K,LAMBDA(e,IF(e="","",SUMIF($F$2:$F,e,$G$2:$G))))`
+  // K: distinct active emails (spills). L/M/N: aggregates mapped over the K spill.
+  const distinctEmails = `IFERROR(UNIQUE(FILTER(${F_},${F_}<>"")),"")`
+  const sumByEmail = `MAP(${K},LAMBDA(e,IF(e="","",SUMIF(${F_},e,${G}))))`
   const nameByEmail =
-    `MAP($K$2:$K,LAMBDA(e,IF(e="","",IFERROR(INDEX(FILTER($H$2:$H,$F$2:$F=e),1),""))))`
-  const earliestByEmail = `MAP($K$2:$K,LAMBDA(e,IF(e="","",MINIFS($I$2:$I,$F$2:$F,e))))`
+    `MAP(${K},LAMBDA(e,IF(e="","",IFERROR(INDEX(FILTER(${H},${F_}=e),1),""))))`
+  const earliestByEmail = `MAP(${K},LAMBDA(e,IF(e="","",MINIFS(${I},${F_},e))))`
 
   return [
     [
@@ -232,12 +255,11 @@ function buildGesamtRankingRows() {
       S('uEmail'), S('uTotal'), S('uName'), S('uEarliest'),
     ],
     [
-      // A2: ranks for as many distinct teams as B spills.
       F('IF(COUNTA(B2:B)=0,"",SEQUENCE(COUNTA(B2:B)))'),
-      // B2/C2: sort per-email aggregate {uName,uTotal,uEarliest} (M/L/N) by
-      // total desc → earliest asc → name asc. FILTER drops blank-email rows.
-      F(`IFERROR(INDEX(SORT(FILTER({$M$2:$M,$L$2:$L,$N$2:$N},$K$2:$K<>""),2,FALSE,3,TRUE,1,TRUE),0,1),"")`),
-      F(`IFERROR(INDEX(SORT(FILTER({$M$2:$M,$L$2:$L,$N$2:$N},$K$2:$K<>""),2,FALSE,3,TRUE,1,TRUE),0,2),"")`),
+      // B2/C2: sort per-email aggregate {uName,uTotal,uEarliest} by total desc →
+      // earliest asc → name asc. FILTER drops blank-email rows.
+      F(`IFERROR(INDEX(SORT(FILTER({${M},${L},${N}},${K}<>""),2,FALSE,3,TRUE,1,TRUE),0,1),"")`),
+      F(`IFERROR(INDEX(SORT(FILTER({${M},${L},${N}},${K}<>""),2,FALSE,3,TRUE,1,TRUE),0,2),"")`),
       S(''),
       F(activeArr), // E2
       F(emailArr), // F2
