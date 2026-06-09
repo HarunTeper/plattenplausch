@@ -509,7 +509,10 @@ function confirmPromptPage_(found, token) {
     '<h1>' + esc_(label) + '-Team bestätigen</h1>' +
     '<p>Bitte bestätige dein ' + esc_(label) + '-Team <b>' + esc_(found.teamName) + '</b>:</p>' +
     '<p style="color:#9fb3c4">Spieler: ' + picks + '</p>' +
-    '<form method="get" action="' + ScriptApp.getService().getUrl() + '">' +
+    // target="_top" makes the confirm navigate the WHOLE tab, not the Apps
+    // Script iframe — otherwise the result page (served by script.google.com with
+    // X-Frame-Options: DENY) can't render embedded and the browser shows an error.
+    '<form method="get" target="_top" action="' + ScriptApp.getService().getUrl() + '">' +
     '<input type="hidden" name="action" value="confirm" />' +
     '<input type="hidden" name="token" value="' + esc_(token) + '" />' +
     '<button type="submit" style="background:#ff5a1f;color:#0b1b2b;border:none;padding:14px 24px;border-radius:10px;font-size:18px;font-weight:bold;cursor:pointer">Mein Team bestätigen</button>' +
@@ -537,7 +540,10 @@ function htmlPage_(title, bodyHtml) {
     '</div></body></html>';
   return HtmlService.createHtmlOutput(html)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
-    .setTitle(title + ' · Plattenplausch');
+    .setTitle(title + ' · Plattenplausch')
+    // Allow the page to render when navigated top-level (post-confirm), avoiding
+    // the browser's "can't display embedded page" block.
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
 function json_(obj) {
