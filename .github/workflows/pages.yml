@@ -18,6 +18,12 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Run the JS-based actions on the runner's Node 24 now, silencing the "Node.js
+# 20 actions are deprecated" warning. (Harmless either way — this only affects
+# the runtime GitHub's own actions execute on, not our Node-20 build.)
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 permissions:
   contents: read
   pages: write
