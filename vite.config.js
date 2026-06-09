@@ -1,6 +1,5 @@
 import { resolve } from 'node:path'
 import { defineConfig } from 'vite'
-import { VitePWA } from 'vite-plugin-pwa'
 
 // The Vite "app root" is `src/` (where the HTML lives). `public/` (icons etc.)
 // and `vite.config.js` stay at the repo root via the explicit options below.
@@ -25,43 +24,8 @@ export default defineConfig({
       },
     },
   },
-  plugins: [
-    VitePWA({
-      registerType: 'autoUpdate',
-      includeAssets: ['icons/*.png', 'favicon.svg'],
-      manifest: {
-        name: 'Plattenplausch — TT Fantasy League',
-        short_name: 'Plattenplausch',
-        description: 'Draft your TTBL fantasy team within 100 points and climb the table.',
-        lang: 'de',
-        theme_color: '#ff5a1f',
-        background_color: '#0b1b2b',
-        display: 'standalone',
-        start_url: '.',
-        scope: '.',
-        icons: [
-          { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' },
-          { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
-        ],
-      },
-      workbox: {
-        // Cache the app shell + roster. The ranking gviz response is cached at
-        // runtime (StaleWhileRevalidate) so the last view survives an outage.
-        globPatterns: ['**/*.{js,css,html,svg,png,json}'],
-        runtimeCaching: [
-          {
-            urlPattern: ({ url }) =>
-              url.hostname.endsWith('google.com') || url.hostname.endsWith('googleusercontent.com'),
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'ranking-gviz',
-              expiration: { maxEntries: 8, maxAgeSeconds: 60 * 60 * 24 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-        ],
-      },
-    }),
-  ],
+  // No service worker / PWA: it served stale builds (blank confirm page,
+  // flip-flopping ranking versions) for near-zero benefit (submit + ranking both
+  // need fresh network anyway). main.js carries a kill-switch that unregisters
+  // any SW already installed on returning visitors so they self-heal.
 })
