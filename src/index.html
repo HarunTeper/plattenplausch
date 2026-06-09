@@ -35,14 +35,34 @@
     </header>
 
     <main class="wrap">
-      <!-- Hero + budget meter -->
-      <section class="hero">
+      <!-- Closed state: both rounds locked -->
+      <section class="hero" style="grid-template-columns: 1fr" x-show="!roundOpen">
         <div>
-          <h1>Dein Kader. <em>100 Punkte.</em> Eine Saison.</h1>
+          <h1>Anmeldung <em>geschlossen</em></h1>
           <p>
-            Stelle aus den TTBL-Stars dein Fantasy-Team zusammen — wähle genau
-            <b x-text="ROSTER_SIZE"></b> Spieler:innen und bleibe im Budget. Einmal
-            bestätigt, ist dein Team für die Saison fixiert. Set and forget.
+            Beide Anmeldephasen (Hin- und Rückrunde) sind vorbei. Die Teams sind fixiert —
+            schau dir an, wie sie sich schlagen.
+          </p>
+          <p style="margin-top: 16px">
+            <a class="btn" href="/ranking.html">Zur Tabelle →</a>
+          </p>
+        </div>
+      </section>
+
+      <!-- Round banner -->
+      <div class="round-banner" x-show="roundOpen">
+        <span class="round-pill" x-text="roundLabel"></span>
+        <span x-text="'Du stellst dein ' + roundLabel + '-Team auf. Jede Runde ist eine eigene Aufstellung mit eigenem Budget.'"></span>
+      </div>
+
+      <!-- Hero + budget meter -->
+      <section class="hero" x-show="roundOpen">
+        <div>
+          <h1 x-text="'Dein ' + roundLabel + '-Kader.'"></h1>
+          <p>
+            Stelle aus den TTBL-Stars dein <span x-text="roundLabel"></span>-Team zusammen — wähle
+            genau <b x-text="ROSTER_SIZE"></b> Spieler:innen und bleibe im 100-Punkte-Budget. Nach
+            Bestätigung ist dein Rundenteam fixiert. Die Gesamtwertung ist Hin- plus Rückrunde.
           </p>
         </div>
 
@@ -72,7 +92,7 @@
         </div>
       </section>
 
-      <div class="grid">
+      <div class="grid" x-show="roundOpen">
         <!-- Player pool -->
         <section class="panel">
           <header><h2>Spielerpool</h2></header>

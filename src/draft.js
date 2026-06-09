@@ -1,21 +1,34 @@
-import players from './players.json'
+import playersHin from './players-hin.json'
+import playersRueck from './players-rueck.json'
 import {
   BUDGET,
   ROSTER_SIZE,
   POSITION_RULES,
+  ROUNDS,
+  currentRoundKey,
   WEBAPP_URL,
   TURNSTILE_SITE_KEY,
 } from './config.js'
 
-// Alpine component for the draft page. Holds `selected` (array of player ids),
-// derives spent/remaining live, enforces budget + roster + position limits on
-// the "add" buttons, and submits IDs-only to the Apps Script Web App.
+// Alpine component for the draft page. Picks the player pool for whichever round
+// is currently open (Hin/Rück), holds `selected` (player ids), derives
+// spent/remaining live, enforces budget + roster + position limits, and submits
+// IDs-only to the Apps Script Web App. If both rounds are closed, shows a closed
+// state. The server independently decides the round from its own lock dates.
 export function draft() {
+  const roundKey = currentRoundKey()
+  const round = roundKey ? ROUNDS[roundKey] : null
+  const pool = roundKey === 'HIN' ? playersHin : roundKey === 'RUECK' ? playersRueck : []
+
   return {
-    players,
+    players: pool,
     BUDGET,
     ROSTER_SIZE,
     siteKey: TURNSTILE_SITE_KEY,
+
+    roundKey, // 'HIN' | 'RUECK' | null
+    roundLabel: round ? round.label : '',
+    roundOpen: !!roundKey,
 
     selected: [],
     query: '',
@@ -34,7 +47,8 @@ export function draft() {
     status: null, // {type:'ok'|'bad'|'warn', msg}
 
     init() {
-      this._renderTurnstile()
+      // No draft to render when both rounds are closed.
+      if (this.roundOpen) this._renderTurnstile()
     },
 
     // ---- derived ----
@@ -201,10 +215,12 @@ export function draft() {
       }
 
       this.submitting = true
-      // IDs only — never prices. The server looks up prices itself.
+      // IDs only — never prices. The server looks up prices itself, and decides
+      // the round from its own locks; `round` here is a hint only.
       const payload = {
         email: this.email.trim().toLowerCase(),
         teamName: this.teamName.trim(),
+        round: this.roundKey,
         players: [...this.selected],
         turnstileToken: this.turnstileToken,
         honeypot: this.website,

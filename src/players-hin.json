@@ -1,0 +1,170 @@
+[
+  {
+    "id": "h001",
+    "name": "Dang Qiu",
+    "club": "Borussia Düsseldorf",
+    "position": "Offensiv",
+    "price": 28
+  },
+  {
+    "id": "h002",
+    "name": "Dimitrij Ovtcharov",
+    "club": "TTC Neu-Ulm",
+    "position": "Offensiv",
+    "price": 27
+  },
+  {
+    "id": "h003",
+    "name": "Timo Boll",
+    "club": "Borussia Düsseldorf",
+    "position": "Allrounder",
+    "price": 24
+  },
+  {
+    "id": "h004",
+    "name": "Patrick Franziska",
+    "club": "1. FC Saarbrücken",
+    "position": "Offensiv",
+    "price": 23
+  },
+  {
+    "id": "h005",
+    "name": "Kay Stumper",
+    "club": "TTC Neu-Ulm",
+    "position": "Allrounder",
+    "price": 18
+  },
+  {
+    "id": "h006",
+    "name": "Anton Källberg",
+    "club": "Borussia Düsseldorf",
+    "position": "Offensiv",
+    "price": 22
+  },
+  {
+    "id": "h007",
+    "name": "Darko Jorgic",
+    "club": "1. FC Saarbrücken",
+    "position": "Offensiv",
+    "price": 21
+  },
+  {
+    "id": "h008",
+    "name": "Ricardo Walther",
+    "club": "TTC Neu-Ulm",
+    "position": "Allrounder",
+    "price": 16
+  },
+  {
+    "id": "h009",
+    "name": "Cedric Meissner",
+    "club": "ASV Grünwettersbach",
+    "position": "Offensiv",
+    "price": 14
+  },
+  {
+    "id": "h010",
+    "name": "Benedikt Duda",
+    "club": "ASV Grünwettersbach",
+    "position": "Allrounder",
+    "price": 17
+  },
+  {
+    "id": "h011",
+    "name": "Fan Bo Meng",
+    "club": "TTF Liebherr Ochsenhausen",
+    "position": "Offensiv",
+    "price": 15
+  },
+  {
+    "id": "h012",
+    "name": "Kirill Gerassimenko",
+    "club": "TTF Liebherr Ochsenhausen",
+    "position": "Offensiv",
+    "price": 15
+  },
+  {
+    "id": "h013",
+    "name": "Steffen Mengel",
+    "club": "Post SV Mühlhausen",
+    "position": "Abwehr",
+    "price": 11
+  },
+  {
+    "id": "h014",
+    "name": "Ruwen Filus",
+    "club": "TTC Fulda-Maberzell",
+    "position": "Abwehr",
+    "price": 12
+  },
+  {
+    "id": "h015",
+    "name": "Mattias Falck",
+    "club": "TTC Neu-Ulm",
+    "position": "Offensiv",
+    "price": 20
+  },
+  {
+    "id": "h016",
+    "name": "Lim Jonghoon",
+    "club": "Borussia Düsseldorf",
+    "position": "Offensiv",
+    "price": 19
+  },
+  {
+    "id": "h017",
+    "name": "Wang Yang",
+    "club": "1. FC Saarbrücken",
+    "position": "Allrounder",
+    "price": 18
+  },
+  {
+    "id": "h018",
+    "name": "Tom Closset",
+    "club": "TTF Liebherr Ochsenhausen",
+    "position": "Offensiv",
+    "price": 13
+  },
+  {
+    "id": "h019",
+    "name": "Daniel Rinderer",
+    "club": "ASV Grünwettersbach",
+    "position": "Abwehr",
+    "price": 9
+  },
+  {
+    "id": "h020",
+    "name": "Gerald Pollak",
+    "club": "Post SV Mühlhausen",
+    "position": "Allrounder",
+    "price": 8
+  },
+  {
+    "id": "h021",
+    "name": "Andreas Levenko",
+    "club": "TTC Fulda-Maberzell",
+    "position": "Allrounder",
+    "price": 10
+  },
+  {
+    "id": "h022",
+    "name": "Filip Zeljko",
+    "club": "Post SV Mühlhausen",
+    "position": "Offensiv",
+    "price": 9
+  },
+  {
+    "id": "h023",
+    "name": "Hugo Calderano",
+    "club": "TTF Liebherr Ochsenhausen",
+    "position": "Offensiv",
+    "price": 26
+  },
+  {
+    "id": "h024",
+    "name": "Vladimir Sidorenko",
+    "club": "TTC Fulda-Maberzell",
+    "position": "Allrounder",
+    "price": 11
+  }
+]
