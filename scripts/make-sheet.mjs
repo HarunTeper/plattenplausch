@@ -180,7 +180,10 @@ function buildRoundRankingRows(roundKey, scoreIdRange, scoreTotalRange) {
   return [
     [S('rank'), S('teamName'), S('total'), S(''), S('active'), S('teamTotal'), S('submittedAt'), S('teamNameSrc')],
     [
-      F('IF(COUNTA(B2:B)=0,"",SEQUENCE(COUNTA(B2:B)))'),
+      // rank: a running 1,2,3… over the non-blank teamName cells in B (spills in
+      // lockstep with B, so tied teams still get distinct sequential ranks). SCAN
+      // accumulates the count; blank rows stay "".
+      F(`ARRAYFORMULA(IF($B$2:$B$${LAST}="","",SCAN(0,$B$2:$B$${LAST},LAMBDA(acc,v,IF(v="",acc,acc+1)))))`),
       F(`IFERROR(INDEX(SORT(FILTER({${H},${F_},${G}},${E}=TRUE),2,FALSE,3,TRUE,1,TRUE),0,1),"")`),
       F(`IFERROR(INDEX(SORT(FILTER({${H},${F_},${G}},${E}=TRUE),2,FALSE,3,TRUE,1,TRUE),0,2),"")`),
       S(''),
@@ -248,7 +251,10 @@ function buildGesamtRankingRows() {
       S('uEmail'), S('uTotal'), S('uName'), S('uEarliest'),
     ],
     [
-      F('IF(COUNTA(B2:B)=0,"",SEQUENCE(COUNTA(B2:B)))'),
+      // rank: a running 1,2,3… over the non-blank teamName cells in B (spills in
+      // lockstep with B, so tied teams still get distinct sequential ranks). SCAN
+      // accumulates the count; blank rows stay "".
+      F(`ARRAYFORMULA(IF($B$2:$B$${LAST}="","",SCAN(0,$B$2:$B$${LAST},LAMBDA(acc,v,IF(v="",acc,acc+1)))))`),
       // B2/C2: sort per-email aggregate {uName,uTotal,uEarliest} by total desc →
       // earliest asc → name asc. FILTER drops blank-email rows.
       F(`IFERROR(INDEX(SORT(FILTER({${M},${L},${N}},${K}<>""),2,FALSE,3,TRUE,1,TRUE),0,1),"")`),
