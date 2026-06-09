@@ -30,13 +30,21 @@ export function ranking() {
       try {
         const res = await fetch(RANKING_URL, { headers: { 'Cache-Control': 'no-cache' } })
         const text = await res.text()
-        this.rows = this._parseCsv(text)
+        // The publish-to-web endpoint can return an HTTP error or an HTML login
+        // page (e.g. if publishing lapsed) instead of CSV. Detect both, and
+        // throw → show the error state, NOT a misleading "no teams yet" (which
+        // would happen if we parsed HTML to zero rows).
+        if (!res.ok) throw new Error('http ' + res.status)
+        if (text.trimStart().startsWith('<')) throw new Error('not-csv')
+        const parsed = this._parseCsv(text)
+        // A valid-but-empty table is fine; only adopt it if the header was real.
+        this.rows = parsed
         this.updated = new Date()
       } catch (err) {
-        // Network unreachable. If the SW served a cached copy fetch() still
-        // resolves; a true failure lands here.
+        // Network unreachable, HTTP error, or non-CSV response. Keep any rows we
+        // already have (e.g. an earlier successful load) rather than blanking.
         this.error =
-          'Tabelle konnte nicht geladen werden. Eventuell wird eine ältere, gespeicherte Version angezeigt.'
+          'Tabelle konnte gerade nicht geladen werden. Eventuell wird eine ältere Version angezeigt — bitte später erneut „Aktualisieren“.'
       } finally {
         this.loading = false
       }
@@ -44,6 +52,8 @@ export function ranking() {
 
     // Parse the published-to-web CSV. Header row maps columns by label so order
     // is robust. Handles quoted fields (team names may contain commas/quotes).
+    // Throws if the first row isn't a recognizable header (so callers can treat
+    // junk/HTML as an error rather than an empty table).
     _parseCsv(text) {
       const rows = this._csvRows(text.trim())
       if (rows.length < 1) return []
@@ -52,6 +62,8 @@ export function ranking() {
       const iRank = idx(['rank', 'rang', 'platz'])
       const iTeam = idx(['teamname', 'team', 'name'])
       const iTotal = idx(['total', 'punkte', 'points', 'gesamt'])
+      // No recognizable columns → this isn't our CSV (HTML/error page).
+      if (iTeam < 0 && iTotal < 0 && iRank < 0) throw new Error('bad-header')
 
       return rows
         .slice(1)
