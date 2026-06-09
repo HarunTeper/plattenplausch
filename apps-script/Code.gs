@@ -26,8 +26,21 @@ var POSITION_RULES = {
   Offensiv: { max: 5 },
 };
 
-// Season submission deadline. After this instant, doPost rejects. ISO 8601.
-var SEASON_LOCK = new Date('2026-09-01T12:00:00+02:00');
+// Two independent drafts. Each round has its own submission deadline. The round
+// is resolved SERVER-SIDE from these locks (the client's `round` is a hint only):
+//   now <  HIN_LOCK              → 'HIN'   draft open
+//   HIN_LOCK <= now < RUECK_LOCK → 'RUECK' draft open
+//   now >= RUECK_LOCK            → null    both closed (doPost rejects)
+// Keep these in sync with ROUNDS in src/config.js.
+var HIN_LOCK = new Date('2026-09-01T12:00:00+02:00');
+var RUECK_LOCK = new Date('2027-01-15T12:00:00+01:00');
+
+function currentRound_(now) {
+  now = now || new Date();
+  if (now < HIN_LOCK) return 'HIN';
+  if (now < RUECK_LOCK) return 'RUECK';
+  return null;
+}
 
 var TEAM_NAME_MAX = 40;
 var TEAM_NAME_MIN = 2;
@@ -42,12 +55,13 @@ var PRUNE_UNCONFIRMED_AFTER_HOURS = 48; // time-trigger prunes older unconfirmed
 var PROFANITY = ['arsch', 'fick', 'hurensohn', 'nazi', 'fuck', 'shit', 'bitch'];
 
 var SHEET_SUBMISSIONS = 'Submissions';
-var SHEET_PLAYERS = 'Players';
+// Per-round player pools (distinct h*/r* ids; a player may change club per round).
+var SHEET_PLAYERS = { HIN: 'Players_Hin', RUECK: 'Players_Rueck' };
 
 // Submissions column order (1-based). Keep in sync with the README sheet spec.
-// submittedAt, email, teamName, p1..pN, token, confirmed, confirmedAt, superseded
+// submittedAt, email, teamName, round, p1..pN, token, confirmed, confirmedAt, superseded
 function submissionsHeader_() {
-  var h = ['submittedAt', 'email', 'teamName'];
+  var h = ['submittedAt', 'email', 'teamName', 'round'];
   for (var i = 1; i <= ROSTER_SIZE; i++) h.push('p' + i);
   h.push('token', 'confirmed', 'confirmedAt', 'superseded');
   return h;
@@ -69,9 +83,11 @@ function doPost(e) {
       return json_({ ok: false, error: 'Sicherheits-Check fehlgeschlagen. Bitte erneut versuchen.' });
     }
 
-    // 3. Deadline — the ONLY place it is enforced.
-    if (new Date() > SEASON_LOCK) {
-      return json_({ ok: false, error: 'Die Anmeldefrist ist abgelaufen. Die Saison ist gesperrt.' });
+    // 3. Round — resolved SERVER-SIDE from the locks (client `round` ignored).
+    //    This is the ONLY place the deadline is enforced.
+    var round = currentRound_();
+    if (!round) {
+      return json_({ ok: false, error: 'Die Anmeldefrist ist abgelaufen. Beide Runden sind gesperrt.' });
     }
 
     // 4. Normalize + validate.
@@ -94,7 +110,8 @@ function doPost(e) {
       return json_({ ok: false, error: 'Doppelte Spieler:innen sind nicht erlaubt.' });
     }
 
-    var playerMap = loadPlayers_();
+    // Validate against the OPEN round's pool (Players_Hin / Players_Rueck).
+    var playerMap = loadPlayers_(round);
     var picked = [];
     for (var i = 0; i < ids.length; i++) {
       var p = playerMap[ids[i]];
@@ -127,8 +144,19 @@ function doPost(e) {
     try {
       var sheet = getSheet_(SHEET_SUBMISSIONS, submissionsHeader_());
 
-      // Per-email rate limit (pending in the last hour).
-      if (countRecentPending_(sheet, email) >= MAX_PENDING_PER_EMAIL_PER_HOUR) {
+      // Name-lock: a team name is fixed per email for the whole season. If this
+      // email already has ANY confirmed team (either round), its name must match
+      // (normalized, case-insensitive). Only the roster may change per round.
+      var existingName = confirmedTeamName_(sheet, email);
+      if (existingName !== null && normName_(existingName) !== normName_(teamName)) {
+        return json_({
+          ok: false,
+          error: 'Diese E-Mail ist als „' + existingName + '“ registriert. Bitte denselben Teamnamen verwenden.',
+        });
+      }
+
+      // Per-email-per-round rate limit (pending in the last hour).
+      if (countRecentPending_(sheet, email, round) >= MAX_PENDING_PER_EMAIL_PER_HOUR) {
         return json_({ ok: false, error: 'Zu viele offene Einreichungen. Bitte später erneut versuchen.' });
       }
 
@@ -139,12 +167,12 @@ function doPost(e) {
 
       var token = Utilities.getUuid();
       var now = new Date();
-      var row = [now, email, teamName];
+      var row = [now, email, teamName, round];
       for (var k = 0; k < ROSTER_SIZE; k++) row.push(ids[k]);
       row.push(token, false, '', false); // token, confirmed, confirmedAt, superseded
       sheet.appendRow(row);
 
-      sendConfirmEmail_(email, teamName, token);
+      sendConfirmEmail_(email, teamName, token, round);
       bumpMailCounters_();
     } finally {
       lock.releaseLock();
@@ -217,13 +245,19 @@ function confirmToken_(token) {
     sheet.getRange(rowNum, col.confirmed + 1).setValue(true);
     sheet.getRange(rowNum, col.confirmedAt + 1).setValue(new Date());
 
-    // Recompute supersession for this email: latest confirmed submittedAt wins.
-    recomputeSupersession_(sheet, String(rowObj[col.email]).trim().toLowerCase());
+    // Recompute supersession scoped to (email, round): the latest confirmed
+    // submittedAt in THIS round wins; the other round is untouched.
+    recomputeSupersession_(
+      sheet,
+      String(rowObj[col.email]).trim().toLowerCase(),
+      String(rowObj[col.round])
+    );
 
+    var roundLabel = roundLabel_(String(rowObj[col.round]));
     return htmlPage_(
       'Team bestätigt',
-      '<h1>Team bestätigt! 🏓</h1><p>Dein Team <b>' + esc_(teamName) +
-        '</b> ist jetzt für die Saison fixiert. Viel Erfolg!</p>' + rankingLink_()
+      '<h1>Team bestätigt! 🏓</h1><p>Dein ' + esc_(roundLabel) + '-Team <b>' + esc_(teamName) +
+        '</b> ist jetzt fixiert. Viel Erfolg!</p>' + rankingLink_()
     );
   } finally {
     lock.releaseLock();
@@ -231,19 +265,22 @@ function confirmToken_(token) {
 }
 
 /**
- * Among all confirmed=TRUE rows for `email`, the one with the latest submittedAt
- * is active (superseded=FALSE); all others superseded=TRUE. Recomputing (rather
- * than just superseding older rows) means a late confirm of an EARLIER submission
- * does not clobber an already-confirmed LATER one. Caller holds the lock.
+ * Among confirmed=TRUE rows for `email` IN `round`, the one with the latest
+ * submittedAt is active (superseded=FALSE); all others superseded=TRUE.
+ * Scoping by round keeps the two mini-seasons independent: re-confirming a Hin
+ * team never touches the Rück team. Recomputing (rather than just superseding
+ * older rows) means a late confirm of an EARLIER submission does not clobber an
+ * already-confirmed LATER one. Caller holds the lock.
  */
-function recomputeSupersession_(sheet, email) {
+function recomputeSupersession_(sheet, email, round) {
   var data = sheet.getDataRange().getValues();
   var col = colIndex_();
   var confirmedRows = []; // {rowNum, submittedAt}
   for (var r = 1; r < data.length; r++) {
     var rowEmail = String(data[r][col.email]).trim().toLowerCase();
+    var rowRound = String(data[r][col.round]);
     var isConfirmed = data[r][col.confirmed] === true || String(data[r][col.confirmed]).toUpperCase() === 'TRUE';
-    if (rowEmail === email && isConfirmed) {
+    if (rowEmail === email && rowRound === round && isConfirmed) {
       confirmedRows.push({ rowNum: r + 1, submittedAt: new Date(data[r][col.submittedAt]).getTime() });
     }
   }
@@ -310,9 +347,9 @@ function colIndex_() {
   return map;
 }
 
-function loadPlayers_() {
+function loadPlayers_(round) {
   var ss = getSpreadsheet_();
-  var sheet = ss.getSheetByName(SHEET_PLAYERS);
+  var sheet = ss.getSheetByName(SHEET_PLAYERS[round]);
   if (!sheet) return {};
   var data = sheet.getDataRange().getValues();
   if (data.length < 2) return {};
@@ -353,6 +390,7 @@ function findByToken_(token) {
         rowNum: r + 1,
         email: data[r][col.email],
         teamName: data[r][col.teamName],
+        round: String(data[r][col.round]),
         players: picks,
         confirmed: data[r][col.confirmed] === true || String(data[r][col.confirmed]).toUpperCase() === 'TRUE',
       };
@@ -361,29 +399,54 @@ function findByToken_(token) {
   return null;
 }
 
-function countRecentPending_(sheet, email) {
+function countRecentPending_(sheet, email, round) {
   var data = sheet.getDataRange().getValues();
   var col = colIndex_();
   var cutoff = Date.now() - 60 * 60 * 1000;
   var n = 0;
   for (var r = 1; r < data.length; r++) {
     var rowEmail = String(data[r][col.email]).trim().toLowerCase();
+    var rowRound = String(data[r][col.round]);
     var confirmed = data[r][col.confirmed] === true || String(data[r][col.confirmed]).toUpperCase() === 'TRUE';
     var ts = new Date(data[r][col.submittedAt]).getTime();
-    if (rowEmail === email && !confirmed && ts >= cutoff) n++;
+    if (rowEmail === email && rowRound === round && !confirmed && ts >= cutoff) n++;
   }
   return n;
 }
 
+// The team name (as originally cased) from any CONFIRMED row for this email, or
+// null if the email has no confirmed team yet. Used to lock the name per email.
+function confirmedTeamName_(sheet, email) {
+  var data = sheet.getDataRange().getValues();
+  var col = colIndex_();
+  for (var r = 1; r < data.length; r++) {
+    var rowEmail = String(data[r][col.email]).trim().toLowerCase();
+    var confirmed = data[r][col.confirmed] === true || String(data[r][col.confirmed]).toUpperCase() === 'TRUE';
+    if (rowEmail === email && confirmed) return String(data[r][col.teamName]);
+  }
+  return null;
+}
+
+function normName_(s) {
+  return String(s).trim().toLowerCase();
+}
+
+function roundLabel_(round) {
+  if (round === 'HIN') return 'Hinrunde';
+  if (round === 'RUECK') return 'Rückrunde';
+  return round;
+}
+
 // ----------------------------- EMAIL + QUOTA -------------------------------
 
-function sendConfirmEmail_(email, teamName, token) {
+function sendConfirmEmail_(email, teamName, token, round) {
   var url = ScriptApp.getService().getUrl() + '?token=' + encodeURIComponent(token);
-  var subject = 'Plattenplausch: Bestätige dein Fantasy-Team';
+  var label = roundLabel_(round);
+  var subject = 'Plattenplausch: Bestätige dein ' + label + '-Team';
   var html =
     '<div style="font-family:Arial,sans-serif;max-width:520px">' +
-    '<h2 style="color:#ff5a1f">Bestätige dein Team 🏓</h2>' +
-    '<p>Du hast das Team <b>' + esc_(teamName) + '</b> eingereicht. Klicke zum Bestätigen:</p>' +
+    '<h2 style="color:#ff5a1f">Bestätige dein ' + esc_(label) + '-Team 🏓</h2>' +
+    '<p>Du hast das ' + esc_(label) + '-Team <b>' + esc_(teamName) + '</b> eingereicht. Klicke zum Bestätigen:</p>' +
     '<p><a href="' + url + '" style="background:#ff5a1f;color:#0b1b2b;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:bold">Team bestätigen</a></p>' +
     '<p style="color:#666;font-size:13px">Oder kopiere diesen Link: ' + url + '</p>' +
     '<p style="color:#666;font-size:13px">Falls du das nicht warst, ignoriere diese E-Mail einfach.</p>' +
@@ -441,9 +504,10 @@ function pruneUnconfirmed_() {
 function confirmPromptPage_(found, token) {
   var confirmUrl = ScriptApp.getService().getUrl() + '?action=confirm&token=' + encodeURIComponent(token);
   var picks = found.players.filter(String).map(esc_).join(', ');
+  var label = roundLabel_(found.round);
   var body =
-    '<h1>Team bestätigen</h1>' +
-    '<p>Bitte bestätige dein Team <b>' + esc_(found.teamName) + '</b>:</p>' +
+    '<h1>' + esc_(label) + '-Team bestätigen</h1>' +
+    '<p>Bitte bestätige dein ' + esc_(label) + '-Team <b>' + esc_(found.teamName) + '</b>:</p>' +
     '<p style="color:#9fb3c4">Spieler: ' + picks + '</p>' +
     '<form method="get" action="' + ScriptApp.getService().getUrl() + '">' +
     '<input type="hidden" name="action" value="confirm" />' +
