@@ -44,7 +44,7 @@ export function ranking() {
         // Network unreachable, HTTP error, or non-CSV response. Keep any rows we
         // already have (e.g. an earlier successful load) rather than blanking.
         this.error =
-          'Tabelle konnte gerade nicht geladen werden. Eventuell wird eine ältere Version angezeigt — bitte später erneut „Aktualisieren“.'
+          'Tabelle konnte gerade nicht geladen werden. Eventuell wird eine ältere Version angezeigt. Bitte später nochmal „Aktualisieren“.'
       } finally {
         this.loading = false
       }

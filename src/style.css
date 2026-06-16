@@ -368,3 +368,64 @@ body {
 
 footer.foot { text-align: center; color: var(--ink-dim); font-size: 0.8rem; padding: 30px 0 0; }
 footer.foot a { color: var(--blue-bright); }
+
+/* ---------- Inline field hint ---------- */
+.lbl-hint { color: var(--ink-dim); font-weight: 400; text-transform: none; letter-spacing: 0; }
+
+/* ---------- (i) info tooltip ---------- */
+.info {
+  position: relative;
+  display: inline-flex;
+  vertical-align: middle;
+  margin-left: 8px;
+  cursor: help;
+  outline: none;
+}
+.info-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: #0a1622;
+  color: var(--ink-dim);
+  font-family: var(--body);
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-style: italic;
+}
+.info:hover .info-dot,
+.info:focus .info-dot { color: var(--ink); border-color: var(--blue); }
+.info-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 40;
+  width: max(240px, 18rem);
+  max-width: 80vw;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 12px 14px;
+  font-family: var(--body);
+  font-size: 0.82rem;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-dim);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  transition: opacity 0.15s, transform 0.15s, visibility 0.15s;
+}
+.info:hover .info-pop,
+.info:focus .info-pop,
+.info:focus-within .info-pop {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}

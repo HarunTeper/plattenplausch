@@ -104,7 +104,7 @@ function doPost(e) {
 
     var teamName = String(body.teamName || '').trim();
     if (teamName.length < TEAM_NAME_MIN || teamName.length > TEAM_NAME_MAX) {
-      return json_({ ok: false, error: 'Teamname muss 2–40 Zeichen lang sein.' });
+      return json_({ ok: false, error: 'Teamname muss 2 bis 40 Zeichen lang sein.' });
     }
     // CSV/formula-injection guard: a teamName starting with = + - @ (or tab/CR)
     // becomes a LIVE formula when written to the Sheet / mirrored into the
@@ -209,7 +209,7 @@ function doGet(e) {
 
   var found = findByToken_(token);
   if (!found) {
-    return htmlPage_('Plattenplausch', '<div class="big">🔍</div><h1>Link <em>ungültig</em></h1><p>Wir konnten diese Einreichung nicht finden — vielleicht wurde sie bereits entfernt. Stelle dein Team einfach neu auf.</p>');
+    return htmlPage_('Plattenplausch', '<div class="big">🔍</div><h1>Link <em>ungültig</em></h1><p>Wir konnten diese Einreichung nicht finden. Vielleicht wurde sie schon entfernt. Stell dein Team einfach neu auf.</p>');
   }
 
   // The CONFIRM action only runs on the button POST-style click (action=confirm).
@@ -553,7 +553,7 @@ function sendConfirmEmail_(email, teamName, token, round) {
     '<p>Dein ' + esc_(label) + '-Team <b>' + esc_(teamName) + '</b> ist eingegangen. Ein Klick noch, dann steht es:</p>' +
     '<p><a href="' + url + '" style="background:#ff5a1f;color:#0b1b2b;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:bold">Team bestätigen</a></p>' +
     '<p style="color:#666;font-size:13px">Falls der Button nicht geht, kopier diesen Link in den Browser: ' + url + '</p>' +
-    '<p style="color:#666;font-size:13px">Du wolltest gar kein Team aufstellen? Dann ignorier diese Mail einfach — ohne den Klick passiert nichts.</p>' +
+    '<p style="color:#666;font-size:13px">Du wolltest gar kein Team aufstellen? Dann ignorier diese Mail einfach. Ohne den Klick passiert nichts.</p>' +
     '</div>';
   // `name` sets the sender DISPLAY name (shows "Plattenplausch" instead of the
   // Google account's personal name) — works on any account. The actual sender
@@ -655,7 +655,7 @@ function confirmPromptPage_(found, token) {
     '<input type="hidden" name="token" value="' + esc_(token) + '" />' +
     '<button type="submit" class="btn">🏓 Mein Team fixieren</button>' +
     '</form>' +
-    '<p class="hint">Erst mit dem Klick wird dein Team fixiert — automatisch passiert nichts. ' +
+    '<p class="hint">Erst mit dem Klick wird dein Team fixiert, automatisch passiert nichts. ' +
     'Danach ist dieses ' + esc_(label) + '-Team für die Saison gesperrt.</p>';
   return htmlPage_('Team bestätigen', body);
 }

@@ -205,7 +205,7 @@ export function draft() {
             this.turnstileToken = ''
             this.status = {
               type: 'warn',
-              msg: 'Sicherheits-Check abgelaufen — bitte erneut bestätigen.',
+              msg: 'Sicherheits-Check abgelaufen. Bitte noch einmal bestätigen.',
             }
             this._resetTurnstile()
           },
@@ -273,13 +273,13 @@ export function draft() {
           this.status = {
             type: 'ok',
             msg:
-              'Fast drin! Wir haben dir einen Bestätigungslink per Mail geschickt — ' +
-              'einmal klicken und dein Team steht. Nichts da? Wirf einen Blick in den Spam-Ordner.',
+              'Fast drin! Wir haben dir einen Bestätigungslink per Mail geschickt. ' +
+              'Einmal klicken und dein Team steht. Nichts da? Wirf einen Blick in den Spam-Ordner.',
           }
         } else {
           this.status = {
             type: 'bad',
-            msg: (data && data.error) || 'Hat nicht geklappt — bitte nochmal versuchen.',
+            msg: (data && data.error) || 'Hat nicht geklappt. Bitte nochmal versuchen.',
           }
         }
       } catch (err) {
@@ -287,7 +287,7 @@ export function draft() {
         this.status = {
           type: 'warn',
           msg:
-            'Da ist nichts durchgegangen — wahrscheinlich offline. Dein Team wurde NICHT ' +
+            'Da ist nichts durchgegangen, wahrscheinlich offline. Dein Team wurde NICHT ' +
             'gespeichert. Kurz prüfen und nochmal abschicken.',
         }
       } finally {

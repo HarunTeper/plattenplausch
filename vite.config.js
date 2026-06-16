@@ -21,6 +21,7 @@ export default defineConfig({
         main: resolve(__dirname, 'src/index.html'),
         ranking: resolve(__dirname, 'src/ranking.html'),
         confirm: resolve(__dirname, 'src/confirm.html'),
+        datenschutz: resolve(__dirname, 'src/datenschutz.html'),
       },
     },
   },

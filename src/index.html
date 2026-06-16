@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#ff5a1f" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <title>Plattenplausch — Stelle dein TTBL-Fantasy-Team auf</title>
+    <title>Plattenplausch: Stelle dein TTBL-Fantasy-Team auf</title>
     <meta
       name="description"
       content="Plattenplausch: Stelle aus 100 Punkten dein TTBL-Fantasy-Team zusammen und klettere die Tabelle hoch."
@@ -56,7 +56,7 @@
       <section class="hero" style="grid-template-columns: 1fr" x-show="!roundOpen">
         <div>
           <h1><span x-text="roundLabel"></span> <em>kommt noch</em></h1>
-          <p x-text="'Die ' + roundLabel + ' ist noch nicht freigeschaltet. Sobald die Hinrunde gelaufen ist, kannst du hier dein zweites Team aufstellen — eigene Aufstellung, frische 100 Punkte.'"></p>
+          <p x-text="'Die ' + roundLabel + ' ist noch nicht freigeschaltet. Sobald die Hinrunde gelaufen ist, kannst du hier dein zweites Team aufstellen: eigene Aufstellung, frische 100 Punkte.'"></p>
           <p style="margin-top: 16px">
             <a class="btn ghost" href="ranking.html">Zur Tabelle →</a>
           </p>
@@ -66,7 +66,7 @@
       <!-- Round banner (open round) -->
       <div class="round-banner" x-show="roundOpen">
         <span class="round-pill" x-text="roundLabel"></span>
-        <span>Eigene Aufstellung, frische 100 Punkte. Stell dein Team auf, bestätige per E-Mail — dann läuft’s.</span>
+        <span>Eigene Aufstellung, frische 100 Punkte. Stell dein Team auf, bestätige per E-Mail, dann läuft’s.</span>
       </div>
 
       <!-- Hero + budget meter -->
@@ -74,14 +74,14 @@
         <div>
           <h1>Sechs Spieler. <em>Hundert Punkte.</em> <span x-text="roundLabel"></span>.</h1>
           <p>
-            Bau dir dein <span x-text="roundLabel"></span>-Team aus den Stars der TTBL — wähle
-            <b x-text="ROSTER_SIZE"></b> Spieler:innen, bleib unter dem 100-Punkte-Budget und sichere
-            dir die Plätze, bevor’s alle anderen tun. Einmal bestätigt, ist dein Team für die Runde
-            gesetzt. Die Gesamtwertung zählt Hin- und Rückrunde zusammen.
+            Bau dir dein <span x-text="roundLabel"></span>-Team aus den Stars der TTBL:
+            <b x-text="ROSTER_SIZE"></b> Spieler:innen, 100 Punkte, keinen mehr. Schnapp dir die
+            Cracks, bevor’s die anderen tun. Einmal bestätigt, steht dein Team für die Runde. Am
+            Ende zählt beides: Hinrunde plus Rückrunde, das ist deine Gesamtwertung.
           </p>
         </div>
 
-        <!-- Tactile budget meter — the hero element -->
+        <!-- Tactile budget meter (the hero element) -->
         <div class="meter" aria-live="polite">
           <div class="row">
             <span class="label">Budget verbleibend</span>
@@ -112,7 +112,7 @@
         <section class="panel">
           <header><h2>Spielerpool</h2></header>
 
-          <!-- Per-club tabs ("Reiter") — browse the pool by Mannschaft. -->
+          <!-- Per-club tabs ("Reiter"): browse the pool by Mannschaft. -->
           <div class="tabs" role="tablist" aria-label="Nach Verein filtern">
             <button
               class="tab"
@@ -201,11 +201,11 @@
             <!-- Submission form -->
             <form @submit.prevent="submit" autocomplete="on" style="margin-top: 18px">
               <div class="field">
-                <label for="teamName">Teamname (öffentlich sichtbar)</label>
+                <label for="teamName">Teamname <span class="lbl-hint">(steht in der Tabelle)</span></label>
                 <input id="teamName" type="text" maxlength="40" x-model="teamName" required placeholder="z. B. Topspin-Titanen" />
               </div>
               <div class="field">
-                <label for="email">E-Mail (nur für die Bestätigung, nie öffentlich)</label>
+                <label for="email">E-Mail <span class="lbl-hint">(für deinen Bestätigungslink)</span></label>
                 <input id="email" type="email" x-model="email" required placeholder="du@example.com" />
               </div>
 
@@ -218,10 +218,9 @@
               <label class="consent field" style="display: flex">
                 <input type="checkbox" x-model="consent" required />
                 <span>
-                  Ich willige ein, dass meine E-Mail-Adresse zur Bestätigung und Verwaltung meines
-                  Fantasy-Teams gespeichert wird. Sie wird niemals öffentlich gezeigt und nach
-                  Saisonende gelöscht. Mehr in der
-                  <a href="#privacy">Datenschutz-Notiz</a>.
+                  Passt, meine E-Mail darf für die Liga gespeichert werden. Nie öffentlich, nach
+                  der Saison gelöscht. Details:
+                  <a href="datenschutz.html" target="_blank" rel="noopener">Datenschutz</a>.
                 </span>
               </label>
 
@@ -238,12 +237,6 @@
               </template>
             </form>
 
-            <div id="privacy" class="note">
-              <b>Datenschutz:</b> Wir speichern deine E-Mail-Adresse, deinen Teamnamen und deine
-              Spielerauswahl in einer zugriffsbeschränkten Google-Tabelle, ausschließlich für die
-              Durchführung der Fantasy-Liga. Keine Weitergabe an Dritte. Löschung nach Saisonende.
-              Die Bestätigungs-Mail ist dein einziger Beleg — es gibt keine Selbstverwaltung.
-            </div>
           </div>
         </section>
       </div>
@@ -251,7 +244,8 @@
       <footer class="foot">
         <!-- INSIDER: room for a podcast tagline / in-joke here later. -->
         Plattenplausch · Fan-Projekt aus der Podcast-Community · keine offizielle TTBL-Seite ·
-        <a href="ranking.html">Zur Tabelle →</a>
+        <a href="ranking.html">Tabelle</a> ·
+        <a href="datenschutz.html">Datenschutz</a>
       </footer>
     </main>
 

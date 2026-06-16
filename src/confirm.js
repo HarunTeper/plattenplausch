@@ -60,7 +60,7 @@ export function confirm() {
           this.state = 'error'
           this.error =
             data && data.error === 'not-found'
-              ? 'Diese Einreichung konnten wir nicht finden — vielleicht wurde sie bereits entfernt. Stelle dein Team einfach neu auf.'
+              ? 'Diese Einreichung konnten wir nicht finden. Vielleicht wurde sie schon entfernt. Stell dein Team einfach neu auf.'
               : 'Dieser Link ist ungültig.'
           return
         }
@@ -90,7 +90,7 @@ export function confirm() {
         }
       } catch (err) {
         this.state = 'error'
-        this.error = 'Verbindung fehlgeschlagen. Dein Team wurde NICHT bestätigt — bitte erneut versuchen.'
+        this.error = 'Verbindung fehlgeschlagen. Dein Team wurde NICHT bestätigt. Bitte noch einmal versuchen.'
         // allow retry
         this._retry = true
       }

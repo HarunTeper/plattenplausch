@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#ff5a1f" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <title>Plattenplausch — Tabelle</title>
+    <title>Plattenplausch: Tabelle</title>
     <meta name="description" content="Die aktuelle Plattenplausch Fantasy-Tabelle." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -34,7 +34,7 @@
         <div>
           <h1>Die <em>Tabelle</em></h1>
           <p>
-            Hin- und Rückrunde zusammengezählt — wer hat das beste Händchen bei der Aufstellung?
+            Hin- und Rückrunde zusammengezählt. Wer hat das beste Händchen bei der Aufstellung?
             Nach jedem Spieltag kommen die Punkte rein, die Tabelle aktualisiert sich ein paar
             Minuten später.
           </p>
@@ -43,7 +43,17 @@
 
       <section class="panel" style="margin-top: 18px">
         <header>
-          <h2>Standings</h2>
+          <h2>
+            Tabelle
+            <span class="info" tabindex="0" role="button" aria-label="Wie die Tabelle funktioniert">
+              <span class="info-dot">i</span>
+              <span class="info-pop">
+                Gezeigt wird pro E-Mail das zuletzt bestätigte Team. Offene (unbestätigte) Teams
+                tauchen nicht auf, E-Mail-Adressen nie. Gleichstand: früher eingereicht zuerst,
+                dann alphabetisch.
+              </span>
+            </span>
+          </h2>
           <span class="updated">
             <template x-if="updated && !error">
               <span x-text="'Stand: ' + updatedLabel + ' Uhr'"></span>
@@ -92,18 +102,13 @@
               </tbody>
             </table>
           </template>
-
-          <p class="note" style="margin-top: 18px">
-            Es werden nur <b>bestätigte, aktive</b> Teams gezeigt (das jeweils zuletzt bestätigte
-            Team pro E-Mail-Adresse). E-Mail-Adressen werden niemals angezeigt. Gleichstand wird
-            nach früherer Einreichung, dann alphabetisch aufgelöst.
-          </p>
         </div>
       </section>
 
       <footer class="foot">
         Plattenplausch · Fan-Projekt der Podcast-Community ·
-        <a href="index.html">← Team aufstellen</a>
+        <a href="index.html">Team aufstellen</a> ·
+        <a href="datenschutz.html">Datenschutz</a>
       </footer>
     </main>
 
