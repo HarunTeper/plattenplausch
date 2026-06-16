@@ -35,34 +35,49 @@
     </header>
 
     <main class="wrap">
-      <!-- Closed state: both rounds locked -->
+      <!-- Round tabs: both rounds always visible; the open one is draftable,
+           the other shows a locked panel. -->
+      <div class="round-tabs" role="tablist" aria-label="Runde wählen">
+        <template x-for="r in rounds" :key="r.key">
+          <button
+            class="round-tab"
+            :class="isActive(r.key) && 'active'"
+            role="tab"
+            :aria-selected="isActive(r.key)"
+            @click="selectRound(r.key)"
+          >
+            <span x-text="r.label"></span>
+            <span class="round-tab-lock" x-show="!isTabOpen(r.key)" title="Noch nicht geöffnet">🔒</span>
+          </button>
+        </template>
+      </div>
+
+      <!-- Locked panel: active tab is a round that isn't open for drafting -->
       <section class="hero" style="grid-template-columns: 1fr" x-show="!roundOpen">
         <div>
-          <h1>Anmeldung <em>geschlossen</em></h1>
-          <p>
-            Beide Anmeldephasen (Hin- und Rückrunde) sind vorbei. Die Teams sind fixiert —
-            schau dir an, wie sie sich schlagen.
-          </p>
+          <h1><span x-text="roundLabel"></span> <em>kommt noch</em></h1>
+          <p x-text="'Die ' + roundLabel + ' ist noch nicht freigeschaltet. Sobald die Hinrunde gelaufen ist, kannst du hier dein zweites Team aufstellen — eigene Aufstellung, frische 100 Punkte.'"></p>
           <p style="margin-top: 16px">
-            <a class="btn" href="ranking.html">Zur Tabelle →</a>
+            <a class="btn ghost" href="ranking.html">Zur Tabelle →</a>
           </p>
         </div>
       </section>
 
-      <!-- Round banner -->
+      <!-- Round banner (open round) -->
       <div class="round-banner" x-show="roundOpen">
         <span class="round-pill" x-text="roundLabel"></span>
-        <span x-text="'Du stellst dein ' + roundLabel + '-Team auf. Jede Runde ist eine eigene Aufstellung mit eigenem Budget.'"></span>
+        <span>Eigene Aufstellung, frische 100 Punkte. Stell dein Team auf, bestätige per E-Mail — dann läuft’s.</span>
       </div>
 
       <!-- Hero + budget meter -->
       <section class="hero" x-show="roundOpen">
         <div>
-          <h1 x-text="'Dein ' + roundLabel + '-Kader.'"></h1>
+          <h1>Sechs Spieler. <em>Hundert Punkte.</em> <span x-text="roundLabel"></span>.</h1>
           <p>
-            Stelle aus den TTBL-Stars dein <span x-text="roundLabel"></span>-Team zusammen — wähle
-            genau <b x-text="ROSTER_SIZE"></b> Spieler:innen und bleibe im 100-Punkte-Budget. Nach
-            Bestätigung ist dein Rundenteam fixiert. Die Gesamtwertung ist Hin- plus Rückrunde.
+            Bau dir dein <span x-text="roundLabel"></span>-Team aus den Stars der TTBL — wähle
+            <b x-text="ROSTER_SIZE"></b> Spieler:innen, bleib unter dem 100-Punkte-Budget und sichere
+            dir die Plätze, bevor’s alle anderen tun. Einmal bestätigt, ist dein Team für die Runde
+            gesetzt. Die Gesamtwertung zählt Hin- und Rückrunde zusammen.
           </p>
         </div>
 
@@ -214,8 +229,8 @@
               <div class="field" x-ref="turnstile" style="margin-top: 16px"></div>
 
               <button class="btn block" type="submit" :disabled="!formValid || submitting">
-                <span x-show="!submitting">Team einreichen</span>
-                <span x-show="submitting">Wird gesendet…</span>
+                <span x-show="!submitting">🏓 Team abschicken</span>
+                <span x-show="submitting">Wird abgeschickt…</span>
               </button>
 
               <template x-if="status">
@@ -234,7 +249,8 @@
       </div>
 
       <footer class="foot">
-        Plattenplausch · Fan-Projekt der Podcast-Community · keine offizielle TTBL-Seite ·
+        <!-- INSIDER: room for a podcast tagline / in-joke here later. -->
+        Plattenplausch · Fan-Projekt aus der Podcast-Community · keine offizielle TTBL-Seite ·
         <a href="ranking.html">Zur Tabelle →</a>
       </footer>
     </main>

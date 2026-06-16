@@ -5,30 +5,30 @@ import {
   ROSTER_SIZE,
   POSITION_RULES,
   ROUNDS,
+  ROUND_ORDER,
   currentRoundKey,
+  isRoundOpen,
   WEBAPP_URL,
   TURNSTILE_SITE_KEY,
 } from './config.js'
 
-// Alpine component for the draft page. Picks the player pool for whichever round
-// is currently open (Hin/Rück), holds `selected` (player ids), derives
-// spent/remaining live, enforces budget + roster + position limits, and submits
-// IDs-only to the Apps Script Web App. If both rounds are closed, shows a closed
-// state. The server independently decides the round from its own lock dates.
-export function draft() {
-  const roundKey = currentRoundKey()
-  const round = roundKey ? ROUNDS[roundKey] : null
-  const pool = roundKey === 'HIN' ? playersHin : roundKey === 'RUECK' ? playersRueck : []
+const POOLS = { HIN: playersHin, RUECK: playersRueck }
 
+// Alpine component for the draft page. Shows BOTH rounds as tabs; the open round
+// (Hin/Rück) is draftable, the other shows a locked panel. Holds `selected`
+// (player ids), derives spent/remaining live, enforces budget + roster +
+// position limits, and submits IDs-only to the Apps Script Web App. The server
+// independently re-decides the round from its own lock dates.
+export function draft() {
+  // Default the active tab to whichever round is open; else the first round.
+  const openKey = currentRoundKey()
   return {
-    players: pool,
     BUDGET,
     ROSTER_SIZE,
     siteKey: TURNSTILE_SITE_KEY,
 
-    roundKey, // 'HIN' | 'RUECK' | null
-    roundLabel: round ? round.label : '',
-    roundOpen: !!roundKey,
+    rounds: ROUND_ORDER.map((k) => ({ key: k, label: ROUNDS[k].label })),
+    activeRound: openKey || ROUND_ORDER[0], // selected TAB (may be locked)
 
     selected: [],
     query: '',
@@ -47,8 +47,43 @@ export function draft() {
     status: null, // {type:'ok'|'bad'|'warn', msg}
 
     init() {
-      // No draft to render when both rounds are closed.
+      // Render Turnstile only if the active tab is actually draftable.
       if (this.roundOpen) this._renderTurnstile()
+    },
+
+    // ---- round / tab state ----
+    get roundKey() {
+      return this.activeRound
+    },
+    get roundLabel() {
+      return ROUNDS[this.activeRound] ? ROUNDS[this.activeRound].label : ''
+    },
+    get roundOpen() {
+      return isRoundOpen(this.activeRound)
+    },
+    get players() {
+      return POOLS[this.activeRound] || []
+    },
+    isActive(key) {
+      return this.activeRound === key
+    },
+    isTabOpen(key) {
+      return isRoundOpen(key)
+    },
+    // Switch tabs: reset the in-progress selection/filters, and lazily render
+    // Turnstile the first time we land on an open round.
+    selectRound(key) {
+      if (this.activeRound === key) return
+      this.activeRound = key
+      this.selected = []
+      this.query = ''
+      this.posFilter = ''
+      this.clubFilter = ''
+      this.status = null
+      if (this.roundOpen && !this.turnstileWidgetId) {
+        // wait for the locked-panel→form DOM swap, then mount the widget
+        this.$nextTick(() => this._renderTurnstile())
+      }
     },
 
     // ---- derived ----
@@ -238,13 +273,13 @@ export function draft() {
           this.status = {
             type: 'ok',
             msg:
-              'Fast geschafft! Wir haben dir einen Bestätigungslink per E-Mail geschickt. ' +
-              'Klicke ihn an, um dein Team zu fixieren. Schau auch im Spam-Ordner nach.',
+              'Fast drin! Wir haben dir einen Bestätigungslink per Mail geschickt — ' +
+              'einmal klicken und dein Team steht. Nichts da? Wirf einen Blick in den Spam-Ordner.',
           }
         } else {
           this.status = {
             type: 'bad',
-            msg: (data && data.error) || 'Einreichung abgelehnt.',
+            msg: (data && data.error) || 'Hat nicht geklappt — bitte nochmal versuchen.',
           }
         }
       } catch (err) {
@@ -252,8 +287,8 @@ export function draft() {
         this.status = {
           type: 'warn',
           msg:
-            'Du bist offline oder die Einreichung ist nicht durchgegangen. ' +
-            'Dein Team wurde NICHT gespeichert — bitte später erneut versuchen.',
+            'Da ist nichts durchgegangen — wahrscheinlich offline. Dein Team wurde NICHT ' +
+            'gespeichert. Kurz prüfen und nochmal abschicken.',
         }
       } finally {
         // Token is single-use; reset the widget either way.

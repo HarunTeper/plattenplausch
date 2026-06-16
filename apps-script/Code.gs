@@ -546,14 +546,14 @@ function sendConfirmEmail_(email, teamName, token, round) {
     ? confirmBase + '?token=' + encodeURIComponent(token)
     : ScriptApp.getService().getUrl() + '?token=' + encodeURIComponent(token);
   var label = roundLabel_(round);
-  var subject = 'Plattenplausch: Bestätige dein ' + label + '-Team';
+  var subject = '🏓 Noch ein Klick: dein ' + label + '-Team bestätigen';
   var html =
     '<div style="font-family:Arial,sans-serif;max-width:520px">' +
-    '<h2 style="color:#ff5a1f">Bestätige dein ' + esc_(label) + '-Team 🏓</h2>' +
-    '<p>Du hast das ' + esc_(label) + '-Team <b>' + esc_(teamName) + '</b> eingereicht. Klicke zum Bestätigen:</p>' +
+    '<h2 style="color:#ff5a1f">Fast im Spiel 🏓</h2>' +
+    '<p>Dein ' + esc_(label) + '-Team <b>' + esc_(teamName) + '</b> ist eingegangen. Ein Klick noch, dann steht es:</p>' +
     '<p><a href="' + url + '" style="background:#ff5a1f;color:#0b1b2b;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:bold">Team bestätigen</a></p>' +
-    '<p style="color:#666;font-size:13px">Oder kopiere diesen Link: ' + url + '</p>' +
-    '<p style="color:#666;font-size:13px">Falls du das nicht warst, ignoriere diese E-Mail einfach.</p>' +
+    '<p style="color:#666;font-size:13px">Falls der Button nicht geht, kopier diesen Link in den Browser: ' + url + '</p>' +
+    '<p style="color:#666;font-size:13px">Du wolltest gar kein Team aufstellen? Dann ignorier diese Mail einfach — ohne den Klick passiert nichts.</p>' +
     '</div>';
   // `name` sets the sender DISPLAY name (shows "Plattenplausch" instead of the
   // Google account's personal name) — works on any account. The actual sender

@@ -15,29 +15,47 @@ export const POSITION_RULES = {
   Offensiv: { max: 5 },
 }
 
-// The season is two independent drafts. Each round has its own lock date and its
-// own player pool. Keep these lock dates in sync with SEASON locks in Code.gs.
+// The season is two independent drafts. Each round has its own lock date, its
+// own player pool, and an `enabled` flag. Keep lock dates in sync with Code.gs.
 //   now < HIN.lock                 → Hinrunde draft open
 //   HIN.lock <= now < RUECK.lock   → Rückrunde draft open
 //   now >= RUECK.lock              → both closed
+// `enabled: false` hard-locks a round regardless of date (the Rückrunde stays
+// closed until we flip this on, even though its tab is shown). The SERVER still
+// decides what it actually accepts — this only governs the UI.
 export const ROUNDS = {
   HIN: {
     key: 'HIN',
     label: 'Hinrunde',
+    enabled: true,
     lock: new Date('2026-09-01T12:00:00+02:00'),
   },
   RUECK: {
     key: 'RUECK',
     label: 'Rückrunde',
+    enabled: false, // not open yet — tab shows a "comes later" panel
     lock: new Date('2027-01-15T12:00:00+01:00'),
   },
 }
 
-// Which round (if any) is open right now. Returns 'HIN' | 'RUECK' | null.
+// Round order for the tab strip.
+export const ROUND_ORDER = ['HIN', 'RUECK']
+
+// Which round (if any) is open for drafting right now — respects BOTH the
+// `enabled` flag and the lock window. Returns 'HIN' | 'RUECK' | null.
 export function currentRoundKey(now = new Date()) {
-  if (now < ROUNDS.HIN.lock) return 'HIN'
-  if (now < ROUNDS.RUECK.lock) return 'RUECK'
+  if (ROUNDS.HIN.enabled && now < ROUNDS.HIN.lock) return 'HIN'
+  if (ROUNDS.RUECK.enabled && now >= ROUNDS.HIN.lock && now < ROUNDS.RUECK.lock) return 'RUECK'
   return null
+}
+
+// Can THIS specific round be drafted right now? (flag + lock window)
+export function isRoundOpen(key, now = new Date()) {
+  const r = ROUNDS[key]
+  if (!r || !r.enabled) return false
+  if (key === 'HIN') return now < r.lock
+  if (key === 'RUECK') return now >= ROUNDS.HIN.lock && now < r.lock
+  return false
 }
 
 // Read at build time from CI/CD vars (see .env.example). Never secret.

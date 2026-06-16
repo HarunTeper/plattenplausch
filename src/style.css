@@ -154,6 +154,34 @@ body {
 .pip { flex: 1; height: 6px; border-radius: 3px; background: #0a1622; }
 .pip.lit { background: var(--blue-bright); }
 
+/* ---------- Round tabs (Hin / Rück) ---------- */
+.round-tabs {
+  display: flex;
+  gap: 8px;
+  margin-top: 26px;
+  border-bottom: 1px solid var(--line);
+}
+.round-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--display);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-size: 1.25rem;
+  font-weight: 800;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: var(--ink-dim);
+  padding: 10px 18px;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -1px;
+}
+.round-tab:hover { color: var(--ink); }
+.round-tab.active { color: var(--orange); border-bottom-color: var(--orange); }
+.round-tab-lock { font-size: 0.85rem; filter: grayscale(0.3); }
+
 /* ---------- Round banner ---------- */
 .round-banner {
   display: flex;
