@@ -217,13 +217,16 @@ body {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  overflow: hidden;
+  /* NOT overflow:hidden — that clipped the (i) tooltip. Round the header's top
+     corners explicitly instead so nothing bleeds past the rounded panel edge. */
 }
 .panel > header {
   display: flex; align-items: center; justify-content: space-between;
   padding: 16px 18px;
   border-bottom: 1px solid var(--line);
   background: rgba(0, 0, 0, 0.15);
+  border-radius: var(--radius) var(--radius) 0 0;
+  overflow: visible;
 }
 .panel > header h2 {
   margin: 0; font-family: var(--display); text-transform: uppercase;
