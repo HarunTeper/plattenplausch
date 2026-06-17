@@ -125,16 +125,17 @@
               Alle
             </button>
             <div class="tabs">
-              <template x-for="club in clubs" :key="club">
+              <template x-for="club in clubs" :key="club.name">
                 <button
                   class="tab"
-                  :class="clubFilter === club && 'active'"
+                  :class="clubFilter === club.name && 'active'"
                   role="tab"
-                  :aria-selected="clubFilter === club"
-                  @click="clubFilter = club"
+                  :aria-selected="clubFilter === club.name"
+                  :title="club.name"
+                  @click="clubFilter = club.name"
                 >
-                  <span x-text="club"></span>
-                  <span class="tab-badge" x-show="pickedInClub(club) > 0" x-text="pickedInClub(club)"></span>
+                  <span class="tab-label" x-text="club.short"></span>
+                  <span class="tab-badge" x-show="pickedInClub(club.name) > 0" x-text="pickedInClub(club.name)"></span>
                 </button>
               </template>
             </div>

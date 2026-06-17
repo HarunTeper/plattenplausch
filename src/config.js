@@ -43,20 +43,22 @@ export const ROUND_ORDER = ['HIN', 'RUECK']
 
 // The 12 TTBL clubs, in official table order. Drives the per-club ("Reiter")
 // tab grid — every club gets a tab whether or not the pool has a player for it
-// yet. Player `club` values in players-*.json MUST match one of these exactly.
+// yet. `name` is the canonical value: player `club` in players-*.json MUST match
+// it exactly, and it's what `clubFilter` filters on. `short` is the compact tab
+// label (legal suffixes / sponsor names trimmed); display-only.
 export const CLUBS = [
-  'Post SV Mühlhausen',
-  'TTC Schwalbe Bergneustadt',
-  'TTC OE Clarity Telefonie-Systeme Bad Homburg e.V.',
-  '1. FC Saarbrücken-TT',
-  'ASC Grünwettersbach',
-  'SV Werder Bremen',
-  'TSV Bad Königshofen',
-  'TTF Liebherr Ochsenhausen',
-  'BV Borussia Dortmund',
-  'Borussia Düsseldorf',
-  'TTC RhönSprudel Fulda-Maberzell',
-  'TTC Zugbrücke Grenzau',
+  { name: 'Post SV Mühlhausen', short: 'Post SV Mühlhausen' },
+  { name: 'TTC Schwalbe Bergneustadt', short: 'Schwalbe Bergneustadt' },
+  { name: 'TTC OE Clarity Telefonie-Systeme Bad Homburg e.V.', short: 'OE Bad Homburg' },
+  { name: '1. FC Saarbrücken-TT', short: '1. FC Saarbrücken' },
+  { name: 'ASC Grünwettersbach', short: 'ASC Grünwettersbach' },
+  { name: 'SV Werder Bremen', short: 'Werder Bremen' },
+  { name: 'TSV Bad Königshofen', short: 'TSV Bad Königshofen' },
+  { name: 'TTF Liebherr Ochsenhausen', short: 'TTF Ochsenhausen' },
+  { name: 'BV Borussia Dortmund', short: 'Borussia Dortmund' },
+  { name: 'Borussia Düsseldorf', short: 'Borussia Düsseldorf' },
+  { name: 'TTC RhönSprudel Fulda-Maberzell', short: 'TTC Fulda-Maberzell' },
+  { name: 'TTC Zugbrücke Grenzau', short: 'TTC Grenzau' },
 ]
 
 // Which round (if any) is open for drafting right now — respects BOTH the

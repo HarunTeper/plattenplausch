@@ -250,14 +250,14 @@ body {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 56px;
+  /* fixed height → every club button is the exact same size in the grid */
+  height: 52px;
   text-align: center;
   font-family: var(--display);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   line-height: 1.15;
-  /* let long club names wrap onto multiple lines inside a taller button */
   white-space: normal;
   word-break: break-word;
   hyphens: auto;
@@ -265,14 +265,22 @@ body {
   border: 1px solid var(--line);
   background: #0a1622;
   color: var(--ink-dim);
-  padding: 10px 12px;
+  padding: 8px 10px;
   border-radius: 14px;
+}
+/* clamp the club name to at most 2 lines (ellipsis past that) */
+.tab-label {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
 }
 /* "Alle" spans the full width on its own row above the club grid */
 .tab-all {
   display: flex;
   width: 100%;
-  min-height: 0;
+  height: auto;
   padding: 10px 14px;
   border-radius: 999px;
 }
