@@ -219,6 +219,9 @@ body {
   box-shadow: var(--shadow);
   /* NOT overflow:hidden — that clipped the (i) tooltip. Round the header's top
      corners explicitly instead so nothing bleeds past the rounded panel edge. */
+  /* min-width:0 lets the panel shrink inside the grid so the club-tab row's
+     overflow-x scroll works again (grid items default to min-width:auto). */
+  min-width: 0;
 }
 .panel > header {
   display: flex; align-items: center; justify-content: space-between;
@@ -279,6 +282,35 @@ body {
   border-radius: 10px; padding: 9px 12px; font-family: var(--body); font-size: 0.92rem;
 }
 .filters input { flex: 1; min-width: 160px; }
+
+/* ---------- Player pool grid (responsive cards) ---------- */
+.player-grid {
+  display: grid;
+  /* auto-fit: as many ~150px columns as fit the panel width, then stretch */
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  gap: 10px;
+  align-content: start;
+}
+.pcard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  min-width: 0;
+}
+.pcard.picked { border-color: var(--ok); background: rgba(56, 211, 159, 0.08); }
+.pcard-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pcard-meta { min-width: 0; }
+.pcard-meta b {
+  display: block; font-weight: 600; line-height: 1.2;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pcard-meta small { color: var(--ink-dim); display: block;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.btn.sm { padding: 8px 10px; font-size: 0.95rem; margin-top: auto; }
 
 .player {
   display: grid;

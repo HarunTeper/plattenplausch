@@ -146,31 +146,33 @@
               </template>
             </select>
           </div>
-          <div class="body">
+          <div class="body player-grid">
             <template x-for="p in visiblePlayers" :key="p.id">
-              <div class="player" :class="isPicked(p.id) && 'picked'">
-                <span class="pos" x-text="p.position"></span>
-                <span class="meta">
+              <div class="pcard" :class="isPicked(p.id) && 'picked'">
+                <div class="pcard-top">
+                  <span class="pos" x-text="p.position"></span>
+                  <span class="price" x-text="p.price"></span>
+                </div>
+                <div class="pcard-meta">
                   <b x-text="p.name"></b>
                   <small x-text="p.club"></small>
-                </span>
-                <span class="price" x-text="p.price"></span>
+                </div>
                 <template x-if="!isPicked(p.id)">
                   <button
-                    class="btn"
+                    class="btn block sm"
                     :disabled="!canAdd(p)"
                     :title="addReason(p)"
                     @click="add(p)"
                   >
-                    +
+                    + Aufstellen
                   </button>
                 </template>
                 <template x-if="isPicked(p.id)">
-                  <button class="btn remove" @click="remove(p.id)">−</button>
+                  <button class="btn block sm remove" @click="remove(p.id)">− Raus</button>
                 </template>
               </div>
             </template>
-            <p x-show="visiblePlayers.length === 0" class="note">Keine Spieler:innen gefunden.</p>
+            <p x-show="visiblePlayers.length === 0" class="note" style="grid-column: 1 / -1">Keine Spieler:innen gefunden.</p>
           </div>
         </section>
 
