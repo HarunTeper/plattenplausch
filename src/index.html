@@ -72,7 +72,7 @@
       <!-- Hero + budget meter -->
       <section class="hero" x-show="roundOpen">
         <div>
-          <h1>Sechs Spieler. <em>Hundert Punkte.</em> <span x-text="roundLabel"></span>.</h1>
+          <h1>Sechs Spieler. <em>Hundert Punkte.</em></h1>
           <p>
             Bau dir dein <span x-text="roundLabel"></span>-Team aus den Stars der TTBL:
             <b x-text="ROSTER_SIZE"></b> Spieler:innen, 100 Punkte. Sichere dir die Besten,
@@ -112,10 +112,11 @@
         <section class="panel">
           <header><h2>Spielerpool</h2></header>
 
-          <!-- Per-club tabs ("Reiter"): browse the pool by Mannschaft. -->
-          <div class="tabs" role="tablist" aria-label="Nach Verein filtern">
+          <!-- Per-club tabs ("Reiter"): browse the pool by Mannschaft.
+               "Alle" is a full-width button above the grid of the 12 clubs. -->
+          <div class="tabs-wrap" role="tablist" aria-label="Nach Verein filtern">
             <button
-              class="tab"
+              class="tab tab-all"
               :class="clubFilter === '' && 'active'"
               role="tab"
               :aria-selected="clubFilter === ''"
@@ -123,18 +124,20 @@
             >
               Alle
             </button>
-            <template x-for="club in clubs" :key="club">
-              <button
-                class="tab"
-                :class="clubFilter === club && 'active'"
-                role="tab"
-                :aria-selected="clubFilter === club"
-                @click="clubFilter = club"
-              >
-                <span x-text="club"></span>
-                <span class="tab-badge" x-show="pickedInClub(club) > 0" x-text="pickedInClub(club)"></span>
-              </button>
-            </template>
+            <div class="tabs">
+              <template x-for="club in clubs" :key="club">
+                <button
+                  class="tab"
+                  :class="clubFilter === club && 'active'"
+                  role="tab"
+                  :aria-selected="clubFilter === club"
+                  @click="clubFilter = club"
+                >
+                  <span x-text="club"></span>
+                  <span class="tab-badge" x-show="pickedInClub(club) > 0" x-text="pickedInClub(club)"></span>
+                </button>
+              </template>
+            </div>
           </div>
 
           <div class="filters">

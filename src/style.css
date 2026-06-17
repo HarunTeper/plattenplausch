@@ -237,28 +237,43 @@ body {
 }
 .panel .body { padding: 14px 18px 18px; }
 
-/* Per-club tabs ("Reiter") — wrap into a grid instead of a scrolling row */
+/* Per-club tabs ("Reiter"): a full-width "Alle" button above a grid of clubs. */
+.tabs-wrap { padding: 14px 18px 0; }
 .tabs {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   gap: 6px;
-  padding: 14px 18px 0;
+  margin-top: 6px;
 }
 .tab {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
+  min-height: 56px;
+  text-align: center;
   font-family: var(--display);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  font-size: 0.95rem;
-  white-space: nowrap;
+  font-size: 0.9rem;
+  line-height: 1.15;
+  /* let long club names wrap onto multiple lines inside a taller button */
+  white-space: normal;
+  word-break: break-word;
+  hyphens: auto;
   cursor: pointer;
   border: 1px solid var(--line);
   background: #0a1622;
   color: var(--ink-dim);
-  padding: 8px 14px;
+  padding: 10px 12px;
+  border-radius: 14px;
+}
+/* "Alle" spans the full width on its own row above the club grid */
+.tab-all {
+  display: flex;
+  width: 100%;
+  min-height: 0;
+  padding: 10px 14px;
   border-radius: 999px;
 }
 .tab:hover { color: var(--ink); border-color: var(--blue); }

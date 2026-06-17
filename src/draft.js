@@ -6,6 +6,7 @@ import {
   POSITION_RULES,
   ROUNDS,
   ROUND_ORDER,
+  CLUBS,
   currentRoundKey,
   isRoundOpen,
   WEBAPP_URL,
@@ -123,11 +124,10 @@ export function draft() {
     get positions() {
       return [...new Set(this.players.map((p) => p.position))].sort()
     },
-    // Distinct clubs, for the "Reiter" (per-Mannschaft) tab row.
+    // All 12 TTBL clubs in official order, for the "Reiter" (per-Mannschaft)
+    // tab grid — every club gets a tab even if the pool has no player for it.
     get clubs() {
-      return [...new Set(this.players.map((p) => p.club))].sort((a, b) =>
-        a.localeCompare(b, 'de')
-      )
+      return CLUBS
     },
     // How many of MY picks belong to a club — shown as a badge on the tab.
     pickedInClub(club) {

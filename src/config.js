@@ -41,6 +41,24 @@ export const ROUNDS = {
 // Round order for the tab strip.
 export const ROUND_ORDER = ['HIN', 'RUECK']
 
+// The 12 TTBL clubs, in official table order. Drives the per-club ("Reiter")
+// tab grid — every club gets a tab whether or not the pool has a player for it
+// yet. Player `club` values in players-*.json MUST match one of these exactly.
+export const CLUBS = [
+  'Post SV Mühlhausen',
+  'TTC Schwalbe Bergneustadt',
+  'TTC OE Clarity Telefonie-Systeme Bad Homburg e.V.',
+  '1. FC Saarbrücken-TT',
+  'ASC Grünwettersbach',
+  'SV Werder Bremen',
+  'TSV Bad Königshofen',
+  'TTF Liebherr Ochsenhausen',
+  'BV Borussia Dortmund',
+  'Borussia Düsseldorf',
+  'TTC RhönSprudel Fulda-Maberzell',
+  'TTC Zugbrücke Grenzau',
+]
+
 // Which round (if any) is open for drafting right now — respects BOTH the
 // `enabled` flag and the lock window. Returns 'HIN' | 'RUECK' | null.
 export function currentRoundKey(now = new Date()) {
