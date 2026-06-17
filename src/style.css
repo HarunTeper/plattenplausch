@@ -237,20 +237,17 @@ body {
 }
 .panel .body { padding: 14px 18px 18px; }
 
-/* Per-club tabs ("Reiter") */
+/* Per-club tabs ("Reiter") — wrap into a grid instead of a scrolling row */
 .tabs {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   gap: 6px;
-  overflow-x: auto;
   padding: 14px 18px 0;
-  scrollbar-width: thin;
 }
-.tabs::-webkit-scrollbar { height: 6px; }
-.tabs::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
 .tab {
-  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   font-family: var(--display);
   text-transform: uppercase;
@@ -283,34 +280,8 @@ body {
 }
 .filters input { flex: 1; min-width: 160px; }
 
-/* ---------- Player pool grid (responsive cards) ---------- */
-.player-grid {
-  display: grid;
-  /* auto-fit: as many ~150px columns as fit the panel width, then stretch */
-  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
-  gap: 10px;
-  align-content: start;
-}
-.pcard {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 11px 12px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.02);
-  min-width: 0;
-}
-.pcard.picked { border-color: var(--ok); background: rgba(56, 211, 159, 0.08); }
-.pcard-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.pcard-meta { min-width: 0; }
-.pcard-meta b {
-  display: block; font-weight: 600; line-height: 1.2;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.pcard-meta small { color: var(--ink-dim); display: block;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.btn.sm { padding: 8px 10px; font-size: 0.95rem; margin-top: auto; }
+/* ---------- Player pool list ---------- */
+.btn.sm { padding: 8px 12px; font-size: 0.95rem; white-space: nowrap; }
 
 .player {
   display: grid;
@@ -328,8 +299,11 @@ body {
   padding: 3px 8px; border-radius: 6px; background: rgba(29, 111, 184, 0.22); color: var(--blue-bright);
   white-space: nowrap;
 }
-.player .meta b { display: block; font-weight: 600; }
-.player .meta small { color: var(--ink-dim); }
+.player .meta { min-width: 0; }
+.player .meta b { display: block; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.player .meta small { color: var(--ink-dim); display: block;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .player .price {
   font-family: var(--display); font-size: 1.5rem; font-weight: 800; font-variant-numeric: tabular-nums;
   color: var(--orange);
